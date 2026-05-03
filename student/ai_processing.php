@@ -386,7 +386,7 @@ const interval = setInterval(()=>{
         setTimeout(()=>{
 
             window.location =
-            "roadmap.php";
+            "dashboard.php";
 
         },1000);
 
