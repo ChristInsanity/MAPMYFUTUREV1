@@ -5,141 +5,66 @@ if (!isset($_SESSION['user_id'])) {
     redirect('../auth.php');
 }
 
-$userId = $_SESSION['user_id'];
+$userId=$_SESSION['user_id'];
 
-
-/*
-|--------------------------------------------------------------------------
-| GET PROFILE
-|--------------------------------------------------------------------------
-*/
-$stmt = $conn->prepare("
-    SELECT *
-    FROM student_profiles
-    WHERE user_id=?
+$stmt=$conn->prepare("
+SELECT *
+FROM student_profiles
+WHERE user_id=?
 ");
 
 $stmt->bind_param("i",$userId);
 $stmt->execute();
 
-$profile = $stmt->get_result()->fetch_assoc();
+$profile=$stmt->get_result()->fetch_assoc();
 
 if(!$profile){
     redirect('profile_setup.php');
 }
 
+$interest=$profile['interests'] ?? 'technology';
 
-/*
-|--------------------------------------------------------------------------
-| SAFE VALUES
-|--------------------------------------------------------------------------
-*/
-$interest = $profile['interests'] ?? 'technology';
-$aiSummary = $profile['ai_summary'] ?? "
+$aiSummary=$profile['ai_summary'] ?? "
 Based on your {$profile['course']} background,
 your interest in {$interest},
 and your dream career of {$profile['dream_job']},
 we found your strongest match.
 ";
 
-$readiness = $profile['readiness_score'] ?? 72;
-$completed = $profile['completed_skills'] ?? 8;
-$missing = $profile['missing_skills'] ?? 3;
-$projects = $profile['portfolio_projects'] ?? 2;
+$readiness=$profile['readiness_score'] ?? 72;
+$completed=$profile['completed_skills'] ?? 12;
+$missing=$profile['missing_skills'] ?? 3;
+$projects=$profile['portfolio_projects'] ?? 8;
 
 
-/*
-|--------------------------------------------------------------------------
-| CAREERS
-|--------------------------------------------------------------------------
-*/
-$careers = [
+$careers=[
 
-    [
-        "title"=>"UI/UX Designer",
-        "salary"=>"₱35,000 - ₱65,000",
-        "match"=>92,
-        "color"=>"#3B82F6",
-        "companies"=>[
-            "Accenture",
-            "Thinking Machines",
-            "Globe"
-        ]
-    ],
+[
+"title"=>"UI/UX Designer",
+"salary"=>"₱25,000 - ₱60,000",
+"match"=>92,
+"progress"=>65,
+"color"=>"from-blue-500 to-cyan-500"
+],
 
-    [
-        "title"=>"Software Developer",
-        "salary"=>"₱40,000 - ₱80,000",
-        "match"=>88,
-        "color"=>"#10B981",
-        "companies"=>[
-            "PLDT",
-            "Smart",
-            "Ayala"
-        ]
-    ],
+[
+"title"=>"Software Developer",
+"salary"=>"₱30,000 - ₱80,000",
+"match"=>88,
+"progress"=>58,
+"color"=>"from-purple-500 to-pink-500"
+],
 
-    [
-        "title"=>"Data Analyst",
-        "salary"=>"₱35,000 - ₱60,000",
-        "match"=>75,
-        "color"=>"#F59E0B",
-        "companies"=>[
-            "Lazada",
-            "Shopee",
-            "GCash"
-        ]
-    ]
+[
+"title"=>"Data Analyst",
+"salary"=>"₱28,000 - ₱70,000",
+"match"=>85,
+"progress"=>52,
+"color"=>"from-green-500 to-emerald-500"
+]
 
 ];
-
-
-/*
-|--------------------------------------------------------------------------
-| ROADMAP
-|--------------------------------------------------------------------------
-*/
-$roadmap = [
-
-    [
-        "title"=>"1st Year - Sem 1",
-        "status"=>"completed",
-        "tasks"=>[
-            "Complete Introduction to Programming",
-            "Learn HTML/CSS Basics"
-        ]
-    ],
-
-    [
-        "title"=>"1st Year - Sem 2",
-        "status"=>"completed",
-        "tasks"=>[
-            "Master JavaScript Fundamentals",
-            "Build First Portfolio Project"
-        ]
-    ],
-
-    [
-        "title"=>"2nd Year - Sem 1",
-        "status"=>"progress",
-        "tasks"=>[
-            "Learn UI/UX Design Principles",
-            "Get Figma Certification"
-        ]
-    ],
-
-    [
-        "title"=>"4th Year",
-        "status"=>"goal",
-        "tasks"=>[
-            "Apply for ".$profile['dream_job']
-        ]
-    ]
-
-];
-
 ?>
-
 
 <!DOCTYPE html>
 <html>
@@ -161,65 +86,71 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
 
 <!-- NAV -->
-<nav class="sticky top-0 z-50 bg-[#162338] border-b border-slate-700">
+<nav class="border-b border-slate-800 sticky top-0 bg-[#020B24]/95 backdrop-blur z-50">
 
-    <div class="max-w-7xl mx-auto px-8 py-4 flex justify-between items-center">
+<div class="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex justify-between items-center">
 
-        <div class="flex gap-10 items-center">
+<div class="flex items-center gap-8">
 
-            <div class="flex gap-3 items-center">
+<div class="text-xl font-bold text-blue-400 flex items-center gap-3">
+    <i class="fa-regular fa-map text-blue-400"></i>
+    Map My Future
+</div>
 
-                <i class="fa-regular fa-map text-blue-400 text-2xl"></i>
+<div class="hidden lg:flex gap-6 text-slate-300">
 
-                <h2 class="font-bold text-2xl">
-                    Map My Future
-                </h2>
+<a href="#" class="text-blue-400 flex items-center gap-2">
+<i class="fa-solid fa-house"></i>
+Dashboard
+</a>
 
-            </div>
+<a href="skill_gap.php" class="flex items-center gap-2">
+<i class="fa-solid fa-bolt"></i>
+Skill Gap
+</a>
 
+<a href="courses.php" class="flex items-center gap-2">
+<i class="fa-solid fa-book-open"></i>
+Courses
+</a>
 
-            <div class="hidden md:flex gap-3">
+<a href="mentors.php" class="flex items-center gap-2">
+<i class="fa-solid fa-users"></i>
+Mentors
+</a>
 
-                <a href="dashboard.php" class="navBtn activeNav">Dashboard</a>
+<a href="jobs.php" class="flex items-center gap-2">
+<i class="fa-solid fa-briefcase"></i>
+Jobs
+</a>
 
-                <a href="skill_gap.php" class="navBtn">Skill Gap</a>
+</div>
 
-                <a href="courses.php" class="navBtn">Courses</a>
-
-                <a href="mentors.php" class="navBtn">Mentors</a>
-
-                <a href="jobs.php" class="navBtn">Jobs</a>
-
-            </div>
-
-        </div>
-
-
-
-        <div class="flex gap-3">
-
-            <a href="readiness.php" class="pillBtn">
-                Readiness: <?= $readiness ?>%
-            </a>
-
-            <a
-            href="portfolio.php"
-            class="bg-blue-600 px-5 py-3 rounded-xl"
-            >
-                Portfolio
-            </a>
-
-        </div>
-
-         <a
-            href="../logout.php"
-            class="redBtn"
-            >
-                Logout
-            </a>
+</div>
 
 
-    </div>
+<div class="flex gap-2 sm:gap-4">
+
+<a
+href="portfolio.php"
+class="bg-blue-600 px-4 py-2 rounded-xl flex items-center gap-2"
+>
+<i class="fa-solid fa-folder-open"></i>
+Portfolio
+</a>
+
+
+<a
+href="../logout.php"
+class="bg-red-600 px-4 py-2 rounded-xl flex items-center gap-2"
+>
+<i class="fa-solid fa-right-from-bracket"></i>
+Logout
+</a>
+
+</div>
+
+</div>
 
 </nav>
 
@@ -227,311 +158,394 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
 
 
-<div class="max-w-7xl mx-auto p-8">
+<div class="max-w-7xl mx-auto px-4 lg:px-8 py-8">
 
 
-    <!-- HEADER -->
-    <h1 class="text-5xl font-bold mb-4">
 
-        Your Career Roadmap
+<!-- WELCOME -->
+<div class="mb-8">
 
-    </h1>
+<div class="flex flex-col lg:flex-row justify-between gap-4 mb-6">
 
+<div>
 
-    <div class="flex gap-3 mb-8 flex-wrap">
+<h1 class="text-3xl lg:text-5xl font-bold mb-2">
+Welcome back!
+</h1>
 
-        <div class="badge">
-            <?= $profile['course'] ?>
-        </div>
+<p class="text-slate-400">
+<?= $profile['course'] ?>
+</p>
 
-        <div class="badge text-green-400">
-            PH Local
-        </div>
+</div>
 
-        <div class="badge text-blue-400">
-            Tech Industry
-        </div>
 
-    </div>
+<div>
 
+<a
+href="#"
+class="bg-gradient-to-r from-yellow-500 to-orange-500 px-6 py-3 rounded-xl font-bold inline-flex items-center gap-3"
+>
+<i class="fa-solid fa-sparkles"></i>
+Upgrade Premium
+</a>
 
+</div>
 
+</div>
 
 
-    <div class="grid grid-cols-3 gap-8">
 
+<div class="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
 
-        <!-- LEFT -->
-        <div class="col-span-2 space-y-8">
+<div class="flex gap-3 items-center mb-2">
 
+<i class="fa-solid fa-bullseye text-blue-400"></i>
 
+<p class="text-blue-400">
+Career Goal
+</p>
 
-            <!-- CAREERS -->
-            <div class="card">
+</div>
 
-                <h2 class="sectionTitle mb-6">
+<h2 class="text-2xl font-bold">
+<?= $profile['dream_job'] ?>
+</h2>
 
-                    Recommended Career Paths
+</div>
 
-                </h2>
+</div>
 
 
-                <?php foreach($careers as $career): ?>
 
 
-                    <div class="careerCard">
 
-                        <div>
 
-                            <h3 class="text-3xl font-bold mb-2">
+<!-- STATS -->
 
-                                <?= $career['title'] ?>
+<div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
-                            </h3>
 
+<div class="statCard">
 
-                            <p class="text-slate-400 mb-3">
+<div class="flex justify-between mb-3">
 
-                                <?= $career['salary'] ?>
+<p>Career Readiness</p>
 
-                            </p>
+<i class="fa-solid fa-chart-line text-green-400"></i>
 
+</div>
 
-                            <div class="flex gap-2 flex-wrap">
+<h2><?= $readiness ?>%</h2>
 
-                                <?php foreach($career['companies'] as $company): ?>
+</div>
 
-                                    <span class="companyTag">
 
-                                        <?= $company ?>
 
-                                    </span>
+<div class="statCard">
 
-                                <?php endforeach; ?>
+<div class="flex justify-between mb-3">
 
-                            </div>
+<p>Skills Mastered</p>
 
-                        </div>
+<i class="fa-solid fa-award text-blue-400"></i>
 
+</div>
 
+<h2><?= $completed ?></h2>
 
-                        <div
-                        class="text-5xl font-bold"
-                        style="color:<?= $career['color'] ?>"
-                        >
+</div>
 
-                            <?= $career['match'] ?>%
 
-                        </div>
 
-                    </div>
+<div class="statCard">
 
+<div class="flex justify-between mb-3">
 
-                <?php endforeach; ?>
+<p>Projects Built</p>
 
+<i class="fa-solid fa-layer-group text-purple-400"></i>
 
-            </div>
+</div>
 
+<h2><?= $projects ?></h2>
 
+</div>
 
 
 
+<div class="statCard">
 
-            <!-- AI -->
-            <div class="aiCard">
+<div class="flex justify-between mb-3">
 
-                <h2 class="sectionTitle mb-5">
+<p>Missing Skills</p>
 
-                    Why <?= $profile['dream_job'] ?>?
+<i class="fa-solid fa-calendar text-yellow-400"></i>
 
-                </h2>
+</div>
 
+<h2><?= $missing ?></h2>
 
-                <p class="text-slate-300 leading-9 text-lg">
+</div>
 
-                    <?= $aiSummary ?>
 
-                </p>
+</div>
 
-            </div>
 
 
 
 
 
 
+<div class="grid lg:grid-cols-3 gap-8">
 
 
-            <!-- ROADMAP -->
-            <div class="card">
 
+<!-- LEFT -->
+<div class="lg:col-span-2 space-y-8">
 
-                <h2 class="sectionTitle mb-8">
 
-                    Your Journey
 
-                </h2>
+<!-- CAREERS -->
 
+<div>
 
-                <?php foreach($roadmap as $step): ?>
+<h2 class="sectionTitle mb-5">
+Your Career Paths
+</h2>
 
-                    <div class="timelineItem">
 
-                        <div class="timelineDot"></div>
+<div class="space-y-4">
 
-                        <div class="flex-1">
+<?php foreach($careers as $career): ?>
 
-                            <h3 class="text-2xl font-bold mb-5">
+<div class="card">
 
-                                <?= $step['title'] ?>
+<div class="flex justify-between mb-4">
 
-                            </h3>
+<div>
 
+<h3 class="text-2xl font-bold mb-1">
+<?= $career['title'] ?>
+</h3>
 
-                            <?php foreach($step['tasks'] as $task): ?>
+<p class="text-slate-400">
+<?= $career['salary'] ?>
+</p>
 
-                                <div class="taskCard">
+</div>
 
-                                    <?= $task ?>
 
-                                </div>
+<div class="text-green-400 font-bold">
+<?= $career['match'] ?>%
+</div>
 
-                            <?php endforeach; ?>
+</div>
 
-                        </div>
 
-                    </div>
 
-                <?php endforeach; ?>
+<div>
 
+<div class="flex justify-between text-sm mb-2">
 
-            </div>
+<p class="text-slate-400">
+Progress
+</p>
 
-        </div>
+<p>
+<?= $career['progress'] ?>%
+</p>
 
+</div>
 
 
+<div class="bg-slate-900 rounded-full h-3">
 
+<div
+class="h-full rounded-full bg-gradient-to-r <?= $career['color'] ?>"
+style="width:<?= $career['progress'] ?>%"
+></div>
 
+</div>
 
+</div>
 
-        <!-- RIGHT -->
-        <div class="space-y-8">
+</div>
 
+<?php endforeach; ?>
 
-            <!-- GOAL -->
-            <div class="goalCard">
+</div>
 
-                <h2 class="text-xl font-bold mb-5">
+</div>
 
-                    Your Goal
 
-                </h2>
 
 
-                <h3 class="text-3xl font-bold mb-4">
 
-                    <?= $profile['dream_job'] ?>
 
-                </h3>
+<!-- AI -->
+<div class="bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/20 rounded-2xl p-6">
 
+<div class="flex items-center gap-3 mb-4">
 
-                <p>
+<i class="fa-solid fa-sparkles text-purple-400"></i>
 
-                    Target: 4th Year
+<h2 class="sectionTitle">
+Why <?= $profile['dream_job'] ?>?
+</h2>
 
-                </p>
+</div>
 
-            </div>
 
+<p class="text-slate-300 leading-8">
+<?= $aiSummary ?>
+</p>
 
+</div>
 
+</div>
 
 
 
-            <!-- PROGRESS -->
-            <div class="card">
 
-                <h2 class="sectionTitle mb-5">
 
-                    Progress Overview
 
-                </h2>
 
+<!-- RIGHT -->
 
-                <div class="progressBar">
+<div class="space-y-6">
 
-                    <div
-                    class="progressFill"
-                    style="width:<?= $readiness ?>%"
-                    ></div>
 
-                </div>
 
+<!-- QUICK -->
+<div>
 
-                <div class="grid grid-cols-2 gap-6 mt-8">
+<h2 class="sectionTitle mb-4">
+Quick Actions
+</h2>
 
 
-                    <div>
+<div class="space-y-3">
 
-                        <h3 class="statGreen">
+<a href="skill_gap.php" class="quickBtn">
+<i class="fa-solid fa-bolt text-purple-400"></i>
+View Skill Gaps
+</a>
 
-                            <?= $completed ?>
+<a href="courses.php" class="quickBtn">
+<i class="fa-solid fa-book text-green-400"></i>
+Find Courses
+</a>
 
-                        </h3>
+<a href="mentors.php" class="quickBtn">
+<i class="fa-solid fa-users text-blue-400"></i>
+Connect with Mentors
+</a>
 
-                        Completed
+<a href="jobs.php" class="quickBtn">
+<i class="fa-solid fa-briefcase text-yellow-400"></i>
+Browse Jobs
+</a>
 
-                    </div>
+</div>
 
+</div>
 
-                    <div>
 
-                        <h3 class="statYellow">
 
-                            <?= $missing ?>
 
-                        </h3>
 
-                        Missing
 
-                    </div>
+<!-- MILESTONES -->
+<div class="card">
 
-                </div>
+<h2 class="sectionTitle mb-4">
+Upcoming Milestones
+</h2>
 
-            </div>
 
+<div class="space-y-4">
 
+<div class="flex gap-3">
+<div class="w-2 h-2 rounded-full bg-yellow-400 mt-2"></div>
+<div>
+Complete Certification
+</div>
+</div>
 
 
+<div class="flex gap-3">
+<div class="w-2 h-2 rounded-full bg-blue-400 mt-2"></div>
+<div>
+Build Portfolio Project
+</div>
+</div>
 
 
-            <!-- ACTIONS -->
-            <div class="card space-y-3">
+<div class="flex gap-3">
+<div class="w-2 h-2 rounded-full bg-purple-400 mt-2"></div>
+<div>
+Apply for Internship
+</div>
+</div>
 
-                <a href="skill_gap.php" class="actionBtn">
-                    View Skill Gaps
-                </a>
 
-                <a href="courses.php" class="actionBtn">
-                    Find Courses
-                </a>
+</div>
 
-                <a href="mentors.php" class="actionBtn">
-                    Connect with Mentors
-                </a>
+</div>
 
-                <a href="jobs.php" class="actionBtn">
-                    Browse Jobs
-                </a>
 
-            </div>
 
-        </div>
 
 
-    </div>
 
+
+<!-- MENTOR -->
+<div class="card">
+
+<h2 class="sectionTitle mb-4">
+Featured Mentor
+</h2>
+
+
+<div class="flex gap-4 items-center">
+
+<div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+
+<i class="fa-solid fa-user"></i>
+
+</div>
+
+
+<div>
+
+<h3 class="font-bold">
+Maria Santos
+</h3>
+
+<p class="text-slate-400 text-sm">
+Senior Mentor
+</p>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+</div>
+
+
+</div>
+
+
+
+</div>
+
+
+</div>
 
 </div>
 
@@ -541,146 +555,48 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
 <style>
 
-.navBtn{
-    padding:12px 18px;
-    border-radius:12px;
-}
-
-.navBtn:hover{
-    background:#1e293b;
-}
-
-.activeNav{
-    background:#2563eb;
-}
-
 .card{
-    background:#162338;
-    border:1px solid #334155;
-    border-radius:24px;
-    padding:32px;
-}
-
-.aiCard{
-    background:linear-gradient(
-        90deg,
-        rgba(59,130,246,.2),
-        rgba(22,35,56,1)
-    );
-
-    border:1px solid #3B82F6;
-    border-radius:24px;
-    padding:32px;
-}
-
-.goalCard{
-    background:linear-gradient(
-        135deg,
-        #3B82F6,
-        #2563EB
-    );
-
-    border-radius:24px;
-    padding:32px;
+background:#162338;
+border:1px solid #334155;
+padding:24px;
+border-radius:20px;
 }
 
 .sectionTitle{
-    font-size:30px;
-    font-weight:bold;
+font-size:24px;
+font-weight:bold;
 }
 
-.badge{
-    border:1px solid #334155;
-    border-radius:999px;
-    padding:8px 18px;
+.quickBtn{
+display:block;
+padding:18px;
+background:#162338;
+border:1px solid #334155;
+border-radius:16px;
 }
 
-.pillBtn{
-    background:#1e293b;
-    padding:12px 20px;
-    border-radius:14px;
+.quickBtn:hover{
+background:#1e293b;
 }
 
-.careerCard{
-    border:1px solid #475569;
-    border-radius:20px;
-    padding:28px;
-    margin-bottom:20px;
-    display:flex;
-    justify-content:space-between;
+.statCard{
+background:#162338;
+border:1px solid #334155;
+padding:24px;
+border-radius:20px;
 }
 
-.companyTag{
-    border:1px solid #475569;
-    border-radius:999px;
-    padding:6px 14px;
+.statCard p{
+color:#94a3b8;
+margin-bottom:8px;
 }
 
-.timelineItem{
-    display:flex;
-    gap:20px;
-    margin-bottom:40px;
-}
-
-.timelineDot{
-    width:20px;
-    height:20px;
-    background:#3B82F6;
-    border-radius:999px;
-    margin-top:8px;
-}
-
-.taskCard{
-    background:#020B24;
-    border:1px solid #334155;
-    border-radius:14px;
-    padding:18px;
-    margin-bottom:12px;
-}
-
-.progressBar{
-    background:#1e293b;
-    height:12px;
-    border-radius:999px;
-}
-
-.progressFill{
-    background:#3B82F6;
-    height:100%;
-    border-radius:999px;
-}
-
-.statGreen{
-    color:#10B981;
-    font-size:38px;
-    font-weight:bold;
-}
-
-.statYellow{
-    color:#F59E0B;
-    font-size:38px;
-    font-weight:bold;
-}
-
-.actionBtn{
-    display:block;
-    padding:16px;
-    border:1px solid #334155;
-    border-radius:14px;
-}
-
-.actionBtn:hover{
-    background:#1e293b;
-}
-
-.redBtn{
-    background:#dc2626;
-    padding:12px 18px;
-    border-radius:14px;
+.statCard h2{
+font-size:32px;
+font-weight:bold;
 }
 
 </style>
-
 
 </body>
 </html>
