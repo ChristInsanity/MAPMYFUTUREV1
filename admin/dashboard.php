@@ -65,7 +65,7 @@ WHERE profile_completed=1
 
 $totalRoadmaps=$conn->query("
 SELECT COUNT(*) total
-FROM student_roadmaps
+FROM student_tasks
 ")->fetch_assoc()['total'] ?? 0;
 
 ?>
@@ -492,7 +492,7 @@ Platform Health
 
 <?= $totalRoadmaps ?>
 
- generated roadmap tasks
+ active student roadmap tasks
 
 </p>
 
