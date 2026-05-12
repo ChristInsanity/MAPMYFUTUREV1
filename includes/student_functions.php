@@ -120,10 +120,10 @@ function careerRuleScore($careerTitle, $subjects, $activities, $workStyle, $drea
     }
 
     if ($dreamJob !== '' && $dreamJob === $careerTitle) {
-        $score += 8;
+        return max(90, min(99, $score + 15));
     }
 
-    return max(62, min(96, $score));
+    return max(62, min(94, $score));
 }
 
 function generateCareerMatches($conn, $answers) {

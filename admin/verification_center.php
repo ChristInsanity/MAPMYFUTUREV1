@@ -1,9 +1,7 @@
 <?php
-require_once '../config.php';
+require_once '../auth_guard.php';
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('../auth.php');
-}
+requireAdmin();
 
 
 /*

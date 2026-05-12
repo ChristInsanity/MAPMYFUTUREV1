@@ -1,4 +1,4 @@
-    <?php
+<?php
     // ==============================
     // DATABASE CONFIGURATION
     // ==============================
@@ -15,10 +15,24 @@
         die("Connection failed: " . $conn->connect_error);
     }
 
+    $conn->set_charset('utf8mb4');
+
     // ==============================
     // SESSION START
     // ==============================
     if (session_status() === PHP_SESSION_NONE) {
+        $sessionPath = session_save_path();
+
+        if ($sessionPath === '' || !is_writable($sessionPath)) {
+            $sessionPath = __DIR__ . '/tmp/sessions';
+
+            if (!is_dir($sessionPath)) {
+                mkdir($sessionPath, 0775, true);
+            }
+
+            session_save_path($sessionPath);
+        }
+
         session_start();
     }
 
@@ -93,6 +107,10 @@
     // ==============================
 
     function sanitize($data) {
-        return htmlspecialchars(strip_tags(trim($data)));
+        return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
+    }
+
+    function e($value) {
+        return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     }
     ?>

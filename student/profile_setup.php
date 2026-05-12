@@ -1,620 +1,402 @@
-<?php
+﻿<?php
 require_once '../config.php';
 
 if (!isset($_SESSION['user_id'])) {
     redirect('../auth.php');
 }
 
-$userId = $_SESSION['user_id'];
+$userId = (int)$_SESSION['user_id'];
 
+$stmt = $conn->prepare("SELECT profile_completed FROM users WHERE user_id = ?");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
 
-/*
-=====================================
-CHECK IF ALREADY COMPLETED
-=====================================
-*/
-
-$check = $conn->prepare("
-    SELECT profile_completed
-    FROM users
-    WHERE user_id = ?
-");
-
-$check->bind_param("i", $userId);
-$check->execute();
-
-$user = $check->get_result()->fetch_assoc();
-
-if($user['profile_completed'] == 1){
+if ($user['profile_completed'] == 1) {
     redirect('dashboard.php');
 }
 
+$subjectOptions = [
+    'Mathematics',
+    'Technology',
+    'Design',
+    'Business',
+    'Problem Solving'
+];
 
+$activityOptions = [
+    'Building Apps',
+    'Designing Interfaces',
+    'Analyzing Data',
+    'Securing Systems',
+    'Managing Teams'
+];
 
-/*
-=====================================
-SAVE PROFILE
-=====================================
-*/
+$workStyleOptions = [
+    'Creative',
+    'Analytical',
+    'Technical',
+    'Collaborative'
+];
 
-if(isset($_POST['complete_setup'])){
+$careerOptions = [
+    'Software Engineer',
+    'UI/UX Designer',
+    'Data Analyst',
+    'Cybersecurity Analyst'
+];
 
-    $course = sanitize($_POST['course']);
-    $year = sanitize($_POST['year_level']);
-    $skills = sanitize($_POST['skills']);
-    $interest = sanitize($_POST['interest']);
-    $dream = sanitize($_POST['dream_job']);
+$studentTypes = [
+    'Senior High Graduate',
+    'College Student',
+    'Fresh Graduate',
+    'Career Shifter'
+];
 
+$errors = [];
 
-    /*
-    =====================================
-    AI CAREER ENGINE
-    =====================================
-    */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
+    $studentType = sanitize($_POST['student_type'] ?? '');
+    $favoriteSubjects = $_POST['favorite_subjects'] ?? [];
+    $activityPreferences = $_POST['activity_preferences'] ?? [];
+    $workStyle = sanitize($_POST['work_style'] ?? '');
+    $dreamKnown = sanitize($_POST['dream_known'] ?? '');
+    $dreamJob = sanitize($_POST['dream_job'] ?? 'Exploring');
 
-    if($interest == "creative"){
+    $favoriteSubjects = array_values(array_filter(array_map('sanitize', (array)$favoriteSubjects)));
+    $activityPreferences = array_values(array_filter(array_map('sanitize', (array)$activityPreferences)));
 
-        $careerPath = "UI/UX Designer";
-
-        $readiness = 72;
-
-        $completedSkills = 8;
-
-        $missingSkills = 3;
-
-        $industry = "PH Tech Industry";
-
-        $summary =
-        "You have strong creative and design thinking potential for product design and UI/UX.";
-
-    }
-    elseif($interest == "systems"){
-
-        $careerPath = "Software Engineer";
-
-        $readiness = 68;
-
-        $completedSkills = 7;
-
-        $missingSkills = 4;
-
-        $industry = "Software Development";
-
-        $summary =
-        "Your logical and technical strengths align with backend systems and software engineering.";
-
-    }
-    else{
-
-        $careerPath = "Data Analyst";
-
-        $readiness = 65;
-
-        $completedSkills = 6;
-
-        $missingSkills = 5;
-
-        $industry = "Data Analytics";
-
-        $summary =
-        "You demonstrate strong analytical potential suited for data-driven decision making.";
-
+    if (!in_array($studentType, $studentTypes, true)) {
+        $errors[] = 'Please choose the student profile that fits you best.';
     }
 
-
-
-    /*
-    =====================================
-    PORTFOLIO ESTIMATION
-    =====================================
-    */
-
-    if($year == "1st Year"){
-        $projects = 1;
-    }
-    elseif($year == "2nd Year"){
-        $projects = 3;
-    }
-    elseif($year == "3rd Year"){
-        $projects = 5;
-    }
-    else{
-        $projects = 8;
+    if (count($favoriteSubjects) === 0) {
+        $errors[] = 'Select at least one subject you enjoy.';
     }
 
+    if (count($activityPreferences) === 0) {
+        $errors[] = 'Select at least one activity that excites you.';
+    }
 
+    if (!in_array($workStyle, $workStyleOptions, true)) {
+        $errors[] = 'Choose the work environment that suits you.';
+    }
 
-    /*
-    =====================================
-    SAVE PROFILE
-    =====================================
-    */
+    if ($dreamKnown === 'yes' && !in_array($dreamJob, $careerOptions, true)) {
+        $errors[] = 'Choose your dream career from the list.';
+    }
 
-    $stmt = $conn->prepare("
-        INSERT INTO student_profiles
-        (
-            user_id,
-            course,
-            year_level,
-            skills,
-            interests,
-            dream_job,
-            career_path,
-            readiness_score,
-            completed_skills,
-            missing_skills,
-            portfolio_projects,
-            target_industry,
-            ai_summary
-        )
-        VALUES
-        (?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ");
+    if ($dreamKnown !== 'yes') {
+        $dreamJob = 'Exploring';
+    }
 
+    if (empty($errors)) {
+        require_once '../includes/student_functions.php';
 
-    $stmt->bind_param(
-        "issssssiiiiss",
-        $userId,
-        $course,
-        $year,
-        $skills,
-        $interest,
-        $dream,
-        $careerPath,
-        $readiness,
-        $completedSkills,
-        $missingSkills,
-        $projects,
-        $industry,
-        $summary
-    );
+        saveDiscoveryProfile($conn, $userId, [
+            'student_type' => $studentType,
+            'favorite_subjects' => $favoriteSubjects,
+            'activity_preferences' => $activityPreferences,
+            'work_style' => $workStyle,
+            'dream_job' => $dreamJob
+        ]);
 
-    $stmt->execute();
-
-
-
-    /*
-    =====================================
-    MARK COMPLETE
-    =====================================
-    */
-
-    $update = $conn->prepare("
-        UPDATE users
-        SET profile_completed = 1
-        WHERE user_id = ?
-    ");
-
-    $update->bind_param("i", $userId);
-    $update->execute();
-
-
-
-    $_SESSION['career_path'] = $careerPath;
-
-
-
-    /*
-    =====================================
-    GO TO AI LOADING
-    =====================================
-    */
-
-    redirect('ai_processing.php');
+        redirect('career_recommendation.php');
+    }
 }
 ?>
 
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
-<title>Map My Future</title>
-
-<script src="https://cdn.tailwindcss.com"></script>
-
-<link
-rel="stylesheet"
-href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-/>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Career Discovery | Map My Future</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
+<body class="bg-[#020B24] text-white min-h-screen flex items-center justify-center px-4 py-10">
 
-
-<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center px-4">
-
-
-<div class="w-full max-w-3xl">
-
-
-    <!-- HEADER -->
+<div class="w-full max-w-4xl">
     <div class="text-center mb-10">
-
         <div class="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center mb-5 shadow-lg shadow-blue-600/30">
             <i class="fa-solid fa-route text-2xl"></i>
         </div>
-
-        <h1 class="text-4xl font-bold mb-3">
-            Build Your Career Profile
-        </h1>
-
-        <p class="text-slate-400 text-lg">
-            Help AI build your personalized roadmap
-        </p>
-
+        <h1 class="text-4xl font-bold mb-3">Discover the IT path made for you</h1>
+        <p class="text-slate-400 text-lg">Answer five quick questions so Map My Future can match you with the right career pathway.</p>
     </div>
 
+    <?php if (!empty($errors)): ?>
+        <div class="mb-6 rounded-2xl border border-red-500 bg-red-500/10 p-4 text-sm text-red-200">
+            <ul class="space-y-2">
+                <?php foreach ($errors as $error): ?>
+                    <li><?= e($error) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
 
-
-
-    <!-- PROGRESS -->
-    <div class="mb-8">
-
-        <div class="flex justify-between mb-3 text-sm">
-
-            <span id="stepText">
-                Step 1 of 5
-            </span>
-
-            <span id="progressText">
-                20%
-            </span>
-
+    <form method="POST" class="bg-[#162338] border border-[#334155] rounded-3xl p-8 lg:p-10">
+        <div class="flex items-center justify-between mb-8 gap-4">
+            <div>
+                <p class="text-slate-400">Onboarding progress</p>
+                <h2 class="text-2xl font-bold">Career discovery wizard</h2>
+            </div>
+            <div class="text-right text-sm text-slate-400">
+                <p>Answer honestly.</p>
+                <p>Continue to personalize your roadmap.</p>
+            </div>
         </div>
 
-
-        <div class="bg-slate-800 h-3 rounded-full">
-
-            <div
-                id="progressBar"
-                class="bg-blue-600 h-3 rounded-full transition-all duration-500"
-                style="width:20%"
-            ></div>
-
+        <div class="mb-8">
+            <div class="flex justify-between mb-2 text-sm text-slate-400">
+                <span id="stepLabel">Step 1 of 5</span>
+                <span id="progressText">20%</span>
+            </div>
+            <div class="bg-[#020B24] border border-[#334155] h-3 rounded-full overflow-hidden">
+                <div id="progressBar" class="bg-blue-600 h-full transition-all duration-300" style="width:20%"></div>
+            </div>
         </div>
 
-    </div>
-
-
-
-
-    <form method="POST">
-
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-10">
-
-
-            <!-- STEP 1 -->
+        <div class="space-y-8">
             <div class="step">
-
-                <h2 class="stepTitle">
-                    What are you studying?
-                </h2>
-
-                <select name="course" required class="inputStyle">
-
-                    <option value="">Choose course</option>
-
-                    <option>BS Information Technology</option>
-                    <option>BS Computer Science</option>
-                    <option>BS Information Systems</option>
-
-                </select>
-
-            </div>
-
-
-
-
-            <!-- STEP 2 -->
-            <div class="step hidden">
-
-                <h2 class="stepTitle">
-                    What year are you in?
-                </h2>
-
-
-                <div class="grid grid-cols-2 gap-4">
-
-                    <?php foreach(["1st Year","2nd Year","3rd Year","4th Year"] as $year): ?>
-
-                        <label>
-
-                            <input
-                            type="radio"
-                            name="year_level"
-                            value="<?= $year ?>"
-                            hidden>
-
-                            <div class="optionCard">
-                                <?= $year ?>
+                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 1</p>
+                <h3 class="text-3xl font-bold mb-4">Who are you?</h3>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <?php foreach ($studentTypes as $type): ?>
+                        <label class="optionCard group">
+                            <input type="radio" name="student_type" value="<?= e($type) ?>" class="hidden" required>
+                            <div class="flex items-center gap-3 p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                                <span class="text-blue-300 text-lg">•</span>
+                                <span><?= e($type) ?></span>
                             </div>
-
                         </label>
-
                     <?php endforeach; ?>
-
                 </div>
-
             </div>
 
-
-
-
-            <!-- STEP 3 -->
             <div class="step hidden">
-
-                <h2 class="stepTitle">
-                    What skills describe you?
-                </h2>
-
-                <input
-                name="skills"
-                required
-                class="inputStyle"
-                placeholder="Programming, Leadership, Design...">
-
-            </div>
-
-
-
-
-            <!-- STEP 4 -->
-            <div class="step hidden">
-
-                <h2 class="stepTitle">
-                    What excites you most?
-                </h2>
-
-
-                <div class="space-y-4">
-
-                    <label>
-                        <input type="radio" name="interest" value="creative" hidden>
-                        <div class="optionCard">🎨 UI/UX Design</div>
-                    </label>
-
-                    <label>
-                        <input type="radio" name="interest" value="systems" hidden>
-                        <div class="optionCard">💻 Software Development</div>
-                    </label>
-
-                    <label>
-                        <input type="radio" name="interest" value="data" hidden>
-                        <div class="optionCard">📊 Data Analytics</div>
-                    </label>
-
+                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 2</p>
+                <h3 class="text-3xl font-bold mb-4">What subjects do you enjoy most?</h3>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <?php foreach ($subjectOptions as $subject): ?>
+                        <label class="optionCard group">
+                            <input type="checkbox" name="favorite_subjects[]" value="<?= e($subject) ?>" class="hidden">
+                            <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                                <span class="text-blue-300 text-lg">✓</span>
+                                <span><?= e($subject) ?></span>
+                            </div>
+                        </label>
+                    <?php endforeach; ?>
                 </div>
-
             </div>
 
-
-
-
-            <!-- STEP 5 -->
             <div class="step hidden">
-
-                <h2 class="stepTitle">
-                    What's your dream career?
-                </h2>
-
-
-                <select name="dream_job" required class="inputStyle">
-
-                    <option value="">Choose dream career</option>
-
-                    <option>UI/UX Designer</option>
-                    <option>Software Engineer</option>
-                    <option>Data Analyst</option>
-
-                </select>
-
+                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 3</p>
+                <h3 class="text-3xl font-bold mb-4">What activities excite you?</h3>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <?php foreach ($activityOptions as $activity): ?>
+                        <label class="optionCard group">
+                            <input type="checkbox" name="activity_preferences[]" value="<?= e($activity) ?>" class="hidden">
+                            <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                                <span class="text-blue-300 text-lg">✓</span>
+                                <span><?= e($activity) ?></span>
+                            </div>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
             </div>
 
-
-
-
-            <!-- BUTTONS -->
-            <div class="flex justify-between mt-10">
-
-                <button
-                type="button"
-                onclick="prevStep()"
-                id="backBtn"
-                class="btnSecondary">
-                    Back
-                </button>
-
-
-                <button
-                type="button"
-                onclick="nextStep()"
-                id="nextBtn"
-                class="btnPrimary">
-                    Next
-                </button>
-
-
-                <button
-                type="submit"
-                name="complete_setup"
-                id="submitBtn"
-                class="hidden btnSuccess">
-                    Generate My Roadmap
-                </button>
-
+            <div class="step hidden">
+                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 4</p>
+                <h3 class="text-3xl font-bold mb-4">What work environment fits you?</h3>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <?php foreach ($workStyleOptions as $style): ?>
+                        <label class="optionCard group">
+                            <input type="radio" name="work_style" value="<?= e($style) ?>" class="hidden" required>
+                            <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                                <span class="text-blue-300 text-lg">•</span>
+                                <span><?= e($style) ?></span>
+                            </div>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
             </div>
 
+            <div class="step hidden">
+                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 5</p>
+                <h3 class="text-3xl font-bold mb-4">Do you already have a dream career?</h3>
+                <div class="grid sm:grid-cols-2 gap-4 mb-4">
+                    <label class="optionCard group">
+                        <input type="radio" name="dream_known" value="yes" class="hidden" required>
+                        <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                            <span class="text-blue-300 text-lg">✔</span>
+                            <span>I already know</span>
+                        </div>
+                    </label>
+                    <label class="optionCard group">
+                        <input type="radio" name="dream_known" value="no" class="hidden" required>
+                        <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                            <span class="text-blue-300 text-lg">?</span>
+                            <span>I’m still exploring</span>
+                        </div>
+                    </label>
+                </div>
+                <div class="dreamChoices hidden">
+                    <label class="block text-sm text-slate-400 mb-2">Pick the IT career that feels most exciting.</label>
+                    <select name="dream_job" class="inputStyle" aria-label="Dream career choice">
+                        <option value="">Select career path</option>
+                        <?php foreach ($careerOptions as $career): ?>
+                            <option value="<?= e($career) ?>"><?= e($career) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <input type="hidden" name="save_profile" value="1">
+            </div>
         </div>
 
+        <div class="flex flex-col sm:flex-row justify-between gap-4 mt-10">
+            <button type="button" id="backBtn" class="btnSecondary w-full sm:w-auto py-4 px-6 rounded-2xl">Back</button>
+            <div class="flex gap-4 w-full sm:w-auto">
+                <button type="button" id="nextBtn" class="btnPrimary w-full py-4 px-6 rounded-2xl">Next</button>
+                <button type="submit" id="submitBtn" class="hidden btnSuccess w-full sm:w-auto py-4 px-6 rounded-2xl">Review Career Matches</button>
+            </div>
+        </div>
     </form>
-
 </div>
 
-
-
-
 <style>
-
-.stepTitle{
-    font-size:28px;
-    font-weight:bold;
-    margin-bottom:25px;
-}
-
-.inputStyle{
-    width:100%;
-    padding:18px;
-    background:#1e293b;
-    border-radius:16px;
-}
-
-.optionCard{
-    background:#1e293b;
-    padding:20px;
-    border-radius:16px;
-    cursor:pointer;
-    border:2px solid transparent;
-    transition:.3s;
-}
-
-.optionCard:hover{
-    border-color:#2563eb;
-}
-
-.optionCard.selected{
-    border-color:#2563eb;
-    box-shadow:0 0 20px rgba(37,99,235,.3);
-}
-
-.btnPrimary,
-.btnSecondary,
-.btnSuccess{
-    padding:14px 28px;
-    border-radius:16px;
-}
-
-.btnPrimary{
-    background:#2563eb;
-}
-
-.btnSecondary{
-    background:#1e293b;
-}
-
-.btnSuccess{
-    background:#16a34a;
-}
-
+    .optionCard{cursor:pointer;}
+    .optionCard input:checked + div, .optionCard:hover div{border-color:#3B82F6;box-shadow:0 0 20px rgba(59,130,246,.2);}
+    .optionCard input:checked + div span:first-child{color:#38bdf8;}
+    .btnPrimary{background:#2563eb;color:#fff;font-weight:700;}
+    .btnPrimary:hover{background:#3b82f6;}
+    .btnSecondary{background:#1e293b;color:#cbd5e1;border:1px solid #334155;}
+    .btnSuccess{background:#16a34a;color:#fff;font-weight:700;}
 </style>
 
-
-
-
 <script>
+    const steps = Array.from(document.querySelectorAll('.step'));
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const stepLabel = document.getElementById('stepLabel');
+    const nextBtn = document.getElementById('nextBtn');
+    const backBtn = document.getElementById('backBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const dreamChoices = document.querySelector('.dreamChoices');
+    const dreamJobSelect = document.querySelector('select[name="dream_job"]');
 
-let currentStep = 0;
+    let currentStep = 0;
 
-const steps = document.querySelectorAll(".step");
-
-
-document.querySelectorAll("input[type=radio]")
-.forEach(radio=>{
-
-    radio.addEventListener("change",()=>{
-
-        let group = radio.name;
-
-        document
-        .querySelectorAll(`input[name="${group}"]`)
-        .forEach(r=>{
-
-            r.nextElementSibling
-            .classList.remove("selected");
-
+    function showStep() {
+        steps.forEach((step, index) => {
+            step.classList.toggle('hidden', index !== currentStep);
         });
 
+        const percent = ((currentStep + 1) / steps.length) * 100;
+        progressBar.style.width = `${Math.round(percent)}%`;
+        progressText.textContent = `${Math.round(percent)}%`;
+        stepLabel.textContent = `Step ${currentStep + 1} of ${steps.length}`;
+        backBtn.disabled = currentStep === 0;
 
-        radio.nextElementSibling
-        .classList.add("selected");
+        if (currentStep === steps.length - 1) {
+            nextBtn.classList.add('hidden');
+            submitBtn.classList.remove('hidden');
+        } else {
+            nextBtn.classList.remove('hidden');
+            submitBtn.classList.add('hidden');
+        }
 
+        updateDreamVisibility();
+    }
+
+    function updateDreamVisibility() {
+        const known = document.querySelector('input[name="dream_known"]:checked')?.value === 'yes';
+        if (known) {
+            dreamChoices.classList.remove('hidden');
+            dreamJobSelect.required = true;
+            if (dreamJobSelect.value === 'Exploring') {
+                dreamJobSelect.value = '';
+            }
+        } else {
+            dreamChoices.classList.add('hidden');
+            dreamJobSelect.required = false;
+            dreamJobSelect.value = 'Exploring';
+        }
+    }
+
+    nextBtn.addEventListener('click', () => {
+        if (!validateStep()) {
+            return;
+        }
+
+        if (currentStep < steps.length - 1) {
+            currentStep += 1;
+            showStep();
+        }
     });
 
-});
+    backBtn.addEventListener('click', () => {
+        if (currentStep > 0) {
+            currentStep -= 1;
+            showStep();
+        }
+    });
 
+    function validateStep() {
+        const step = steps[currentStep];
+        const radioGroups = new Set();
 
+        step.querySelectorAll('input[type="radio"][required]').forEach((radio) => {
+            radioGroups.add(radio.name);
+        });
 
-function showStep(){
+        for (const name of radioGroups) {
+            if (!step.querySelector(`input[name="${name}"]:checked`)) {
+                return false;
+            }
+        }
 
-    steps.forEach(
-        step=>step.classList.add("hidden")
-    );
+        const requiredSelects = step.querySelectorAll('select[required]');
+        for (const select of requiredSelects) {
+            if (!select.value) {
+                return false;
+            }
+        }
 
-    steps[currentStep]
-    .classList.remove("hidden");
+        if (step.querySelector('input[name="favorite_subjects[]"]') && !step.querySelector('input[name="favorite_subjects[]"]:checked')) {
+            return false;
+        }
 
+        if (step.querySelector('input[name="activity_preferences[]"]') && !step.querySelector('input[name="activity_preferences[]"]:checked')) {
+            return false;
+        }
 
-    let percent = ((currentStep+1)/5)*100;
-
-
-    progressBar.style.width = percent+"%";
-
-    progressText.innerText = Math.round(percent)+"%";
-
-    stepText.innerText =
-    `Step ${currentStep+1} of 5`;
-
-
-    backBtn.disabled = currentStep==0;
-
-
-    if(currentStep==4){
-
-        nextBtn.classList.add("hidden");
-
-        submitBtn.classList.remove("hidden");
-
-    }
-    else{
-
-        nextBtn.classList.remove("hidden");
-
-        submitBtn.classList.add("hidden");
-
+        return true;
     }
 
-}
+    document.querySelectorAll('input[name="dream_known"]').forEach(input => {
+        input.addEventListener('change', updateDreamVisibility);
+    });
 
+    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            checkbox.closest('label').querySelector('div').classList.toggle('border-blue-500', checkbox.checked);
+        });
+    });
 
-function nextStep(){
+    document.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const group = radio.name;
+            document.querySelectorAll(`input[name="${group}"]`).forEach(input => {
+                input.closest('label').querySelector('div').classList.remove('border-blue-500');
+            });
+            radio.closest('label').querySelector('div').classList.add('border-blue-500');
+        });
+    });
 
-    if(currentStep < 4){
-
-        currentStep++;
-
-        showStep();
-
-    }
-
-}
-
-
-function prevStep(){
-
-    if(currentStep > 0){
-
-        currentStep--;
-
-        showStep();
-
-    }
-
-}
-
-
-showStep();
-
+    showStep();
 </script>
-
 
 </body>
 </html>

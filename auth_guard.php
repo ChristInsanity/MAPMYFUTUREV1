@@ -18,4 +18,16 @@ function requireRole($role) {
 function requireStudent() {
     requireRole('student');
 }
+
+function requireAdmin() {
+    requireRole('admin');
+}
+
+function requireMentor() {
+    requireRole('mentor');
+}
+
+function requireEmployer() {
+    requireRole('employer');
+}
 ?>

@@ -1,4 +1,5 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+DROP DATABASE IF EXISTS `test`;
 CREATE DATABASE IF NOT EXISTS `test` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `test`;
 START TRANSACTION;
@@ -62,58 +63,6 @@ CREATE TABLE IF NOT EXISTS career_paths (
   PRIMARY KEY (path_id),
   UNIQUE KEY uq_career_paths_title (title)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE career_paths ADD COLUMN path_id INT(11) NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'path_id');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE career_paths ADD COLUMN description TEXT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'description');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE career_paths ADD COLUMN icon VARCHAR(80) NOT NULL DEFAULT ''fa-route''', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'icon');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE career_paths ADD COLUMN category VARCHAR(100) DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'category');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE career_paths ADD COLUMN average_salary_ph VARCHAR(100) DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'average_salary_ph');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE career_paths ADD COLUMN industry VARCHAR(120) DEFAULT ''Philippine IT Industry''', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'industry');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @has_career_id = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND COLUMN_NAME = 'career_id');
-SET @sql = IF(@has_career_id > 0, 'UPDATE career_paths SET path_id = career_id WHERE path_id IS NULL', 'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'CREATE UNIQUE INDEX uq_career_paths_path_id ON career_paths(path_id)', 'SELECT 1') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'career_paths' AND INDEX_NAME = 'uq_career_paths_path_id');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN student_type VARCHAR(80) DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'student_type');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN favorite_subjects JSON DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'favorite_subjects');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN activity_preferences JSON DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'activity_preferences');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN work_style VARCHAR(80) DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'work_style');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN career_path_id INT(11) DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'career_path_id');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN career_match_percentage INT(11) DEFAULT 0', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'career_match_percentage');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_profiles ADD COLUMN career_ready TINYINT(1) DEFAULT 0', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_profiles' AND COLUMN_NAME = 'career_ready');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE users ADD COLUMN career_path VARCHAR(120) DEFAULT NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'career_path');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(COUNT(*) = 1, 'ALTER TABLE users MODIFY confirm_password VARCHAR(50) NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'confirm_password');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS career_years (
   year_id INT(11) NOT NULL AUTO_INCREMENT,
@@ -460,47 +409,38 @@ CREATE TABLE IF NOT EXISTS student_career_matches (
   is_primary TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (match_id),
+  UNIQUE KEY uq_student_career_match_path (user_id, path_id),
   KEY idx_student_career_matches_user (user_id),
   KEY idx_student_career_matches_path (path_id),
   CONSTRAINT fk_student_career_matches_user_new FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
   CONSTRAINT fk_student_career_matches_path_new FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET @sql = (SELECT IF(COUNT(*) = 0, 'ALTER TABLE student_career_matches ADD COLUMN path_id INT(11) NULL', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_career_matches' AND COLUMN_NAME = 'path_id');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @has_match_career_id = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_career_matches' AND COLUMN_NAME = 'career_id');
-SET @sql = IF(@has_match_career_id > 0, 'ALTER TABLE student_career_matches MODIFY career_id INT(11) NULL', 'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+INSERT INTO users (full_name, email, password, role, status, profile_completed)
+VALUES
+('System Administrator', 'admin@mapmyfuture.test', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llCIB4MG2EFIxLB2Jh5g2', 'admin', 'approved', 0)
+ON DUPLICATE KEY UPDATE
+full_name = VALUES(full_name),
+role = VALUES(role),
+status = VALUES(status);
 
 INSERT INTO career_paths (title, description, icon, category, average_salary_ph, industry)
 VALUES
 ('Software Engineer', 'Builds reliable applications, APIs, databases, and production software systems for real users.', 'fa-code', 'Engineering', 'PHP 30,000 - PHP 90,000', 'Software Development'),
 ('UI/UX Designer', 'Designs usable digital products through research, information architecture, prototyping, and interface systems.', 'fa-pen-nib', 'Design', 'PHP 25,000 - PHP 60,000', 'Product Design'),
 ('Data Analyst', 'Turns raw data into cleaned datasets, dashboards, insights, and business recommendations.', 'fa-chart-simple', 'Analytics', 'PHP 28,000 - PHP 75,000', 'Data Analytics'),
-('Cybersecurity Analyst', 'Protects systems by identifying risks, monitoring threats, and improving security controls.', 'fa-shield-halved', 'Security', 'PHP 35,000 - PHP 95,000', 'Cybersecurity')
-ON DUPLICATE KEY UPDATE
-description = VALUES(description),
-icon = VALUES(icon),
-category = VALUES(category),
-average_salary_ph = VALUES(average_salary_ph),
-industry = VALUES(industry);
-
-SET @sql = IF(@has_career_id > 0, 'UPDATE career_paths SET path_id = career_id WHERE path_id IS NULL', 'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+('Cybersecurity Analyst', 'Protects systems by identifying risks, monitoring threats, and improving security controls.', 'fa-shield-halved', 'Security', 'PHP 35,000 - PHP 95,000', 'Cybersecurity');
 
 INSERT INTO career_years (path_id, year_number)
 SELECT cp.path_id, y.year_number
 FROM career_paths cp
 JOIN (SELECT 1 AS year_number UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) y
-WHERE cp.title IN ('Software Engineer','UI/UX Designer','Data Analyst','Cybersecurity Analyst')
-ON DUPLICATE KEY UPDATE year_number = VALUES(year_number);
+WHERE cp.title IN ('Software Engineer','UI/UX Designer','Data Analyst','Cybersecurity Analyst');
 
 INSERT INTO career_semesters (year_id, semester_number)
 SELECT cy.year_id, s.semester_number
 FROM career_years cy
-JOIN (SELECT 1 AS semester_number UNION ALL SELECT 2) s
-ON DUPLICATE KEY UPDATE semester_number = VALUES(semester_number);
+JOIN (SELECT 1 AS semester_number UNION ALL SELECT 2) s;
 
 INSERT INTO career_subjects (semester_id, subject_code, subject_title, description, subject_order)
 SELECT csem.semester_id, seed.subject_code, seed.subject_title, seed.description, seed.subject_order
@@ -604,57 +544,48 @@ FROM (
 ) seed
 JOIN career_paths cp ON cp.title = seed.career
 JOIN career_years cy ON cy.path_id = cp.path_id AND cy.year_number = seed.yr
-JOIN career_semesters csem ON csem.year_id = cy.year_id AND csem.semester_number = seed.sem
-ON DUPLICATE KEY UPDATE subject_title = VALUES(subject_title), description = VALUES(description), subject_order = VALUES(subject_order);
+JOIN career_semesters csem ON csem.year_id = cy.year_id AND csem.semester_number = seed.sem;
 
 INSERT INTO subject_modules (subject_id, title, module_order)
-SELECT subject_id, CONCAT(subject_title, ' Concepts'), 1 FROM career_subjects
-ON DUPLICATE KEY UPDATE title = VALUES(title);
+SELECT subject_id, CONCAT(subject_title, ' Concepts'), 1 FROM career_subjects;
 
 INSERT INTO subject_modules (subject_id, title, module_order)
-SELECT subject_id, CONCAT(subject_title, ' Lab'), 2 FROM career_subjects
-ON DUPLICATE KEY UPDATE title = VALUES(title);
+SELECT subject_id, CONCAT(subject_title, ' Lab'), 2 FROM career_subjects;
 
 INSERT INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
 SELECT sm.module_id, CONCAT('Introduction to ', cs.subject_title), 'text', NULL, 1
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
-WHERE sm.module_order = 1
-ON DUPLICATE KEY UPDATE title = VALUES(title), content_type = VALUES(content_type), content_url = VALUES(content_url);
+WHERE sm.module_order = 1;
 
 INSERT INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
 SELECT sm.module_id, CONCAT('Guided practice for ', cs.subject_title), 'text', NULL, 2
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
-WHERE sm.module_order = 1
-ON DUPLICATE KEY UPDATE title = VALUES(title), content_type = VALUES(content_type), content_url = VALUES(content_url);
+WHERE sm.module_order = 1;
 
 INSERT INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
 SELECT sm.module_id, CONCAT('Applied lab: ', cs.subject_title), 'text', NULL, 1
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
-WHERE sm.module_order = 2
-ON DUPLICATE KEY UPDATE title = VALUES(title), content_type = VALUES(content_type), content_url = VALUES(content_url);
+WHERE sm.module_order = 2;
 
 INSERT INTO module_tasks (module_id, title, task_type, points)
 SELECT sm.module_id, CONCAT(cs.subject_title, ' Checkpoint Quiz'), 'quiz', 25
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
-WHERE sm.module_order = 1
-ON DUPLICATE KEY UPDATE task_type = VALUES(task_type), points = VALUES(points);
+WHERE sm.module_order = 1;
 
 INSERT INTO module_tasks (module_id, title, task_type, points)
 SELECT sm.module_id, CONCAT(cs.subject_title, ' Applied Assignment'), 'assignment', 35
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
-WHERE sm.module_order = 2
-ON DUPLICATE KEY UPDATE task_type = VALUES(task_type), points = VALUES(points);
+WHERE sm.module_order = 2;
 
 INSERT INTO module_tasks (module_id, title, task_type, points)
 SELECT sm.module_id, CONCAT(cs.subject_title, ' Portfolio Project'), 'project', 40
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
-WHERE sm.module_order = 2
-ON DUPLICATE KEY UPDATE task_type = VALUES(task_type), points = VALUES(points);
+WHERE sm.module_order = 2;
 
 COMMIT;
