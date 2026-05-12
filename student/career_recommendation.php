@@ -31,15 +31,18 @@ $message = $profile['ai_summary'] ?? 'Map My Future has prepared your personaliz
 
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['path_id'])) {
-    $selectedPathId = (int)$_POST['path_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $selectedPathId = (int)($_POST['path_id'] ?? 0);
 
-    if (finalizeStudentCareer($conn, $userId, $selectedPathId)) {
-        $_SESSION['career_path'] = getPrimaryCareerMatch($conn, $userId)['title'];
+    if ($selectedPathId <= 0) {
+        $error = 'Please select a career path before continuing.';
+    } elseif (finalizeStudentCareer($conn, $userId, $selectedPathId)) {
+        $primaryCareer = getPrimaryCareerMatch($conn, $userId);
+        $_SESSION['career_path'] = $primaryCareer['title'] ?? '';
         redirect('ai_processing.php');
+    } else {
+        $error = 'Unable to save your selected career. Please try again.';
     }
-
-    $error = 'Unable to save your selected career. Please try again.';
 }
 
 $pageTitle = 'Career Recommendation';
@@ -99,9 +102,9 @@ include '../header.php';
     </div>
 
     <form method="POST" class="space-y-4">
-        <?php foreach ($careerMatches as $match): ?>
-            <label class="block bg-[#162338] border border-[#334155] rounded-3xl p-5 cursor-pointer hover:border-blue-500 transition-all">
-                <input type="radio" name="path_id" value="<?= (int)$match['path_id'] ?>" class="hidden" required>
+        <?php foreach ($careerMatches as $index => $match): ?>
+            <label class="careerCardItem block bg-[#162338] border border-[#334155] rounded-3xl p-5 cursor-pointer hover:border-blue-500 transition-all">
+                <input type="radio" name="path_id" value="<?= (int)$match['path_id'] ?>" class="hidden" <?= $index === 0 ? 'checked' : '' ?> required>
                 <div class="flex items-start gap-4">
                     <div class="w-14 h-14 rounded-3xl bg-blue-600/10 flex items-center justify-center text-blue-300 text-2xl mt-1">
                         <i class="fa-solid <?= e($match['icon']) ?>"></i>
@@ -125,5 +128,22 @@ include '../header.php';
         </div>
     </form>
 </div>
+
+<script>
+    const careerInputs = document.querySelectorAll('input[name="path_id"]');
+
+    function refreshCareerSelection() {
+        careerInputs.forEach((input) => {
+            const card = input.closest('.careerCardItem');
+            card.classList.toggle('border-blue-500', input.checked);
+        });
+    }
+
+    careerInputs.forEach((input) => {
+        input.addEventListener('change', refreshCareerSelection);
+    });
+
+    refreshCareerSelection();
+</script>
 
 <?php include '../footer.php'; ?>

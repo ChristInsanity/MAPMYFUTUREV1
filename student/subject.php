@@ -6,6 +6,8 @@ requireStudent();
 
 $userId = (int)$_SESSION['user_id'];
 $subjectId = (int)($_GET['id'] ?? $_POST['subject_id'] ?? 0);
+$subscription = getActiveSubscription($conn, $userId);
+$hasPremiumAccess = $subscription !== null;
 $data = getSubjectLearningData($conn, $userId, $subjectId);
 
 if (!$data) {
@@ -19,9 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'start_subject') {
         startSubject($conn, $userId, $subjectId);
-    }
-
-    if ($action === 'complete_task') {
+    } elseif ($action === 'complete_lesson') {
+        markLessonComplete($conn, $userId, (int)($_POST['lesson_id'] ?? 0));
+    } elseif ($action === 'complete_task') {
         completeModuleTask($conn, $userId, (int)($_POST['task_id'] ?? 0));
     }
 
@@ -78,19 +80,42 @@ include '../header.php';
                         <h3 class="font-bold mb-3 text-slate-300">Lessons</h3>
                         <div class="space-y-3">
                             <?php foreach ($module['lessons'] as $lesson): ?>
+                                <?php
+                                    $lessonCompleted = $lesson['completed'] ?? false;
+                                    $statusBadge = $lessonCompleted ? 'COMPLETED' : 'NOT STARTED';
+                                    $badgeClass = $lessonCompleted ? 'text-green-300 border-green-500/30 bg-green-500/10' : 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10';
+                                    $resourceUrl = $lesson['lesson_file'] ?: '';
+                                    $resourceExists = false;
+                                    if (!empty($lesson['lesson_file'])) {
+                                        $resourceExists = file_exists(__DIR__ . '/../' . $lesson['lesson_file']);
+                                    }
+                                    $pdfUrl = $resourceExists ? $resourceUrl : 'uploads/lessons/sample.pdf';
+                                ?>
                                 <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                     <div class="flex items-center gap-3">
                                         <i class="fa-solid <?= $lesson['content_type'] === 'video' ? 'fa-circle-play' : ($lesson['content_type'] === 'pdf' ? 'fa-file-pdf' : 'fa-book-open') ?> text-blue-300"></i>
                                         <div>
                                             <p class="font-semibold"><?= e($lesson['title']) ?></p>
-                                            <p class="text-slate-500 text-sm"><?= e(ucfirst($lesson['content_type'])) ?> lesson</p>
+                                            <span class="badge <?= $badgeClass ?> ml-2 text-xs align-middle"><?= $statusBadge ?></span>
+                                            <p class="text-slate-500 text-sm">
+                                                <?= e(ucfirst($lesson['content_type'])) ?> lesson
+                                                <?php if ($lesson['is_premium']): ?>
+                                                    &bull; Premium
+                                                <?php endif; ?>
+                                            </p>
                                         </div>
                                     </div>
-                                    <?php if ($lesson['content_url']): ?>
-                                        <a href="<?= e($lesson['content_url']) ?>" class="secondaryBtn" target="_blank">Open</a>
-                                    <?php else: ?>
-                                        <span class="badge text-blue-300 border-blue-500/30 bg-blue-500/10">Self-paced</span>
-                                    <?php endif; ?>
+                                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                                        <?php if ($lesson['is_premium'] && !$hasPremiumAccess): ?>
+                                            <a href="subscribe.php" class="secondaryBtn">Upgrade to Premium</a>
+                                        <?php else: ?>
+                                            <form method="POST" class="inline-flex" target="_blank" action="">
+                                                <input type="hidden" name="lesson_id" value="<?= (int)$lesson['lesson_id'] ?>">
+                                                <input type="hidden" name="action" value="complete_lesson">
+                                                <button type="submit" class="secondaryBtn" onclick="window.open('<?= e($pdfUrl) ?>','_blank');">READ LESSON</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>

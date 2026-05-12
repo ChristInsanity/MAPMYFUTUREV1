@@ -76,6 +76,27 @@ function containsChoice($choices, $needle) {
     return in_array($needle, $choices, true);
 }
 
+function logEmail($conn, $recipientEmail, $subject, $body, $status = 'sent') {
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS email_logs (
+            email_log_id INT(11) NOT NULL AUTO_INCREMENT,
+            recipient_email VARCHAR(255) NOT NULL,
+            subject VARCHAR(255) NOT NULL,
+            body TEXT NOT NULL,
+            status VARCHAR(50) NOT NULL DEFAULT 'sent',
+            sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (email_log_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO email_logs (recipient_email, subject, body, status) VALUES (?, ?, ?, ?)",
+        "ssss",
+        [$recipientEmail, $subject, $body, $status]
+    );
+}
+
 function careerRuleScore($careerTitle, $subjects, $activities, $workStyle, $dreamJob) {
     $score = 58;
 
@@ -303,6 +324,131 @@ function getStudentCareerPathId($conn, $userId) {
     return (int)($primary['path_id'] ?? 0);
 }
 
+function ensureStudentSubscriptionsTable($conn) {
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS student_subscriptions (
+            subscription_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            plan VARCHAR(100) NOT NULL,
+            plan_type VARCHAR(50) NOT NULL DEFAULT 'free',
+            status ENUM('active','cancelled','expired') NOT NULL DEFAULT 'active',
+            started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (subscription_id),
+            UNIQUE KEY uq_student_subscriptions_user (user_id),
+            KEY idx_student_subscriptions_user (user_id),
+            CONSTRAINT fk_student_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    return $conn->query("ALTER TABLE student_subscriptions ADD COLUMN IF NOT EXISTS plan_type VARCHAR(50) NOT NULL DEFAULT 'free'");
+}
+
+function ensureLessonProgressTable($conn) {
+    return $conn->query(
+        "CREATE TABLE IF NOT EXISTS lesson_progress (
+            lesson_progress_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            lesson_id INT(11) NOT NULL,
+            completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (lesson_progress_id),
+            UNIQUE KEY uq_lesson_progress_user_lesson (user_id, lesson_id),
+            CONSTRAINT fk_lesson_progress_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_lesson_progress_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function ensureModuleLessonsSchema($conn) {
+    $conn->query("ALTER TABLE module_lessons ADD COLUMN IF NOT EXISTS lesson_file VARCHAR(255) DEFAULT NULL");
+    $conn->query("ALTER TABLE module_lessons ADD COLUMN IF NOT EXISTS is_premium TINYINT(1) NOT NULL DEFAULT 0");
+    $conn->query("ALTER TABLE module_lessons MODIFY COLUMN content_type ENUM('video','pdf','text','article') NOT NULL");
+}
+
+function getActiveSubscription($conn, $userId) {
+    ensureStudentSubscriptionsTable($conn);
+
+    return dbFetchOne(
+        $conn,
+        "SELECT * FROM student_subscriptions WHERE user_id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY started_at DESC LIMIT 1",
+        "i",
+        [$userId]
+    );
+}
+
+function hasPremiumAccess($conn, $userId) {
+    return getActiveSubscription($conn, $userId) !== null;
+}
+
+function getCompletedLessonCount($conn, $userId) {
+    ensureLessonProgressTable($conn);
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(lp.lesson_progress_id) AS completed_lessons
+         FROM lesson_progress lp
+         WHERE lp.user_id = ?",
+        "i",
+        [$userId]
+    );
+
+    return (int)($row['completed_lessons'] ?? 0);
+}
+
+function getPendingLessonQuizCount($conn, $userId) {
+    ensureLessonProgressTable($conn);
+    ensureLessonQuizTables($conn);
+
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(*) AS pending_quizzes
+         FROM lesson_progress lp
+         JOIN lesson_quizzes lq ON lq.lesson_id = lp.lesson_id
+         LEFT JOIN lesson_quiz_attempts lqa ON lqa.quiz_id = lq.quiz_id AND lqa.user_id = ?
+         WHERE lp.user_id = ?
+         AND (lqa.attempt_id IS NULL OR lqa.passed = 0)",
+        "ii",
+        [$userId, $userId]
+    );
+
+    return (int)($row['pending_quizzes'] ?? 0);
+}
+
+function getCompletedLessons($conn, $userId) {
+    ensureLessonProgressTable($conn);
+    return dbFetchAll(
+        $conn,
+        "SELECT ml.*
+         FROM lesson_progress lp
+         JOIN module_lessons ml ON ml.lesson_id = lp.lesson_id
+         WHERE lp.user_id = ?
+         ORDER BY ml.lesson_order",
+        "i",
+        [$userId]
+    );
+}
+
+function createLessonQuizIfMissing($conn, $lessonId) {
+    ensureLessonQuizTables($conn);
+
+    $existing = getLessonQuizByLesson($conn, $lessonId);
+    if ($existing) {
+        return $existing;
+    }
+
+    $lesson = dbFetchOne($conn, "SELECT title FROM module_lessons WHERE lesson_id = ?", "i", [$lessonId]);
+    if (!$lesson) {
+        return null;
+    }
+
+    dbExecute(
+        $conn,
+        "INSERT INTO lesson_quizzes (lesson_id, title, passing_score) VALUES (?, ?, 70)",
+        "is",
+        [$lessonId, 'Quiz for ' . $lesson['title']]
+    );
+
+    return getLessonQuizByLesson($conn, $lessonId);
+}
+
 function initializeStudentSubjects($conn, $userId, $pathId) {
     $subjects = dbFetchAll(
         $conn,
@@ -528,7 +674,10 @@ function getStudentProgress($conn, $userId) {
         'available_subjects' => $available,
         'locked_subjects' => $locked,
         'pending_tasks' => getPendingTaskCount($conn, $userId),
+        'pending_quizzes' => getPendingLessonQuizCount($conn, $userId),
+        'completed_lessons' => getCompletedLessonCount($conn, $userId),
         'mentor_status' => getMentorStatus($conn, $userId),
+        'premium_status' => hasPremiumAccess($conn, $userId) ? 'Premium Active' : 'Free Plan',
         'current_year' => $current['year'],
         'current_semester' => $current['semester'],
         'current_subject' => $current['subject'],
@@ -561,6 +710,9 @@ function getRoadmapByYear($conn, $userId) {
 }
 
 function getSubjectLearningData($conn, $userId, $subjectId) {
+    ensureLessonProgressTable($conn);
+    ensureModuleLessonsSchema($conn);
+
     $subject = dbFetchOne(
         $conn,
         "SELECT ss.*, cs.subject_code, cs.subject_title, cs.description,
@@ -587,12 +739,24 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
     );
 
     foreach ($modules as $moduleIndex => $module) {
-        $modules[$moduleIndex]['lessons'] = dbFetchAll(
+        $lessons = dbFetchAll(
             $conn,
             "SELECT * FROM module_lessons WHERE module_id = ? ORDER BY lesson_order",
             "i",
             [$module['module_id']]
         );
+
+        foreach ($lessons as $lessonIndex => $lesson) {
+            $progress = dbFetchOne(
+                $conn,
+                "SELECT 1 AS completed FROM lesson_progress WHERE user_id = ? AND lesson_id = ?",
+                "ii",
+                [$userId, $lesson['lesson_id']]
+            );
+            $lessons[$lessonIndex]['completed'] = (bool)($progress['completed'] ?? false);
+        }
+
+        $modules[$moduleIndex]['lessons'] = $lessons;
         $modules[$moduleIndex]['tasks'] = dbFetchAll(
             $conn,
             "SELECT mt.*, ts.status AS submission_status, ts.score, ts.feedback
@@ -612,21 +776,40 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
 }
 
 function recalculateSubjectProgress($conn, $userId, $subjectId) {
+    ensureLessonProgressTable($conn);
+    ensureLessonQuizTables($conn);
+
     $stats = dbFetchOne(
         $conn,
-        "SELECT COUNT(mt.task_id) AS total_tasks,
-                SUM(CASE WHEN ts.status = 'completed' THEN 1 ELSE 0 END) AS completed_tasks
+        "SELECT
+                COUNT(DISTINCT mt.task_id) AS total_tasks,
+                SUM(CASE WHEN ts.status = 'completed' THEN 1 ELSE 0 END) AS completed_tasks,
+                COUNT(DISTINCT ml.lesson_id) AS total_lessons,
+                SUM(CASE WHEN lp.lesson_progress_id IS NOT NULL THEN 1 ELSE 0 END) AS completed_lessons,
+                COUNT(DISTINCT ml.lesson_id) AS total_quizzes,
+                SUM(CASE WHEN lqa.passed = 1 THEN 1 ELSE 0 END) AS completed_quizzes
          FROM subject_modules sm
-         JOIN module_tasks mt ON mt.module_id = sm.module_id
+         LEFT JOIN module_tasks mt ON mt.module_id = sm.module_id
          LEFT JOIN task_submissions ts ON ts.task_id = mt.task_id AND ts.user_id = ?
+         LEFT JOIN module_lessons ml ON ml.module_id = sm.module_id
+         LEFT JOIN lesson_progress lp ON lp.lesson_id = ml.lesson_id AND lp.user_id = ?
+         LEFT JOIN lesson_quizzes lq ON lq.lesson_id = ml.lesson_id
+         LEFT JOIN lesson_quiz_attempts lqa ON lqa.quiz_id = lq.quiz_id AND lqa.user_id = ?
          WHERE sm.subject_id = ?",
-        "ii",
-        [$userId, $subjectId]
+        "iiii",
+        [$userId, $userId, $userId, $subjectId]
     );
 
-    $total = (int)($stats['total_tasks'] ?? 0);
-    $completed = (int)($stats['completed_tasks'] ?? 0);
-    $progress = $total > 0 ? (int)round(($completed / $total) * 100) : 0;
+    $totalTasks = (int)($stats['total_tasks'] ?? 0);
+    $completedTasks = (int)($stats['completed_tasks'] ?? 0);
+    $totalLessons = (int)($stats['total_lessons'] ?? 0);
+    $completedLessons = (int)($stats['completed_lessons'] ?? 0);
+    $totalQuizzes = (int)($stats['total_quizzes'] ?? 0);
+    $completedQuizzes = (int)($stats['completed_quizzes'] ?? 0);
+
+    $totalItems = $totalTasks + $totalLessons + $totalQuizzes;
+    $completedItems = $completedTasks + $completedLessons + $completedQuizzes;
+    $progress = $totalItems > 0 ? (int)round(($completedItems / $totalItems) * 100) : 0;
 
     dbExecute(
         $conn,
@@ -655,6 +838,43 @@ function startSubject($conn, $userId, $subjectId) {
         "ii",
         [$userId, $subjectId]
     );
+}
+
+function markLessonComplete($conn, $userId, $lessonId) {
+    ensureLessonProgressTable($conn);
+    ensureModuleLessonsSchema($conn);
+
+    $lesson = dbFetchOne(
+        $conn,
+        "SELECT ml.lesson_id, ml.is_premium, sm.subject_id, ss.status AS subject_status
+         FROM module_lessons ml
+         JOIN subject_modules sm ON sm.module_id = ml.module_id
+         JOIN student_subjects ss ON ss.subject_id = sm.subject_id AND ss.user_id = ?
+         WHERE ml.lesson_id = ?",
+        "ii",
+        [$userId, $lessonId]
+    );
+
+    if (!$lesson || $lesson['subject_status'] === 'locked') {
+        return false;
+    }
+
+    if ((int)$lesson['is_premium'] === 1 && !hasPremiumAccess($conn, $userId)) {
+        return false;
+    }
+
+    dbExecute(
+        $conn,
+        "INSERT INTO lesson_progress (lesson_id, user_id)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE lesson_id = lesson_id",
+        "ii",
+        [$lessonId, $userId]
+    );
+
+    createLessonQuizIfMissing($conn, $lessonId);
+    recalculateSubjectProgress($conn, $userId, (int)$lesson['subject_id']);
+    return true;
 }
 
 function completeModuleTask($conn, $userId, $taskId) {
@@ -894,19 +1114,198 @@ function readableStatus($status) {
 }
 
 function getAssessments($conn, $userId) {
-    return [];
+    $pathId = getStudentCareerPathId($conn, $userId);
+
+    if ($pathId === 0) {
+        return [];
+    }
+
+    return dbFetchAll(
+        $conn,
+        "SELECT a.*, rt.title AS task_title,
+                COALESCE(st.status, 'available') AS task_status,
+                aa.score AS latest_score,
+                aa.passed AS latest_passed
+         FROM assessments a
+         JOIN roadmap_tasks rt ON rt.task_id = a.task_id
+         LEFT JOIN student_tasks st ON st.task_id = rt.task_id AND st.user_id = ?
+         LEFT JOIN assessment_attempts aa ON aa.assessment_id = a.assessment_id AND aa.user_id = ?
+         WHERE rt.path_id = ?
+         ORDER BY a.title",
+        "iii",
+        [$userId, $userId, $pathId]
+    );
 }
 
 function getAssessmentWithQuestions($conn, $assessmentId, $userId) {
-    return null;
+    $assessment = dbFetchOne(
+        $conn,
+        "SELECT a.*, COALESCE(st.status, 'available') AS task_status
+         FROM assessments a
+         JOIN roadmap_tasks rt ON rt.task_id = a.task_id
+         LEFT JOIN student_tasks st ON st.task_id = rt.task_id AND st.user_id = ?
+         WHERE a.assessment_id = ?",
+        "ii",
+        [$userId, $assessmentId]
+    );
+
+    if (!$assessment) {
+        return null;
+    }
+
+    $questions = dbFetchAll(
+        $conn,
+        "SELECT q.* FROM assessment_questions q WHERE q.assessment_id = ? ORDER BY q.question_id",
+        "i",
+        [$assessmentId]
+    );
+
+    foreach ($questions as $index => $question) {
+        $questions[$index]['choices'] = dbFetchAll(
+            $conn,
+            "SELECT * FROM assessment_choices WHERE question_id = ? ORDER BY choice_id",
+            "i",
+            [$question['question_id']]
+        );
+    }
+
+    $assessment['questions'] = $questions;
+    return $assessment;
 }
 
 function gradeAssessment($conn, $assessmentId, $answers) {
-    return 0;
+    $questionIds = array_keys($answers);
+    $correct = 0;
+    $total = 0;
+
+    foreach ($questionIds as $questionId) {
+        $selectedChoiceId = (int)$answers[$questionId];
+        $choice = dbFetchOne(
+            $conn,
+            "SELECT is_correct FROM assessment_choices WHERE choice_id = ? AND question_id = ?",
+            "ii",
+            [$selectedChoiceId, (int)$questionId]
+        );
+
+        if ($choice && (int)$choice['is_correct'] === 1) {
+            $correct++;
+        }
+
+        $total++;
+    }
+
+    return $total > 0 ? (int)round(($correct / $total) * 100) : 0;
 }
 
 function saveAssessmentAttempt($conn, $userId, $assessmentId, $score) {
-    return false;
+    $assessment = dbFetchOne(
+        $conn,
+        "SELECT * FROM assessments WHERE assessment_id = ?",
+        "i",
+        [$assessmentId]
+    );
+
+    if (!$assessment) {
+        return false;
+    }
+
+    $passed = $score >= (int)$assessment['passing_score'] ? 1 : 0;
+
+    dbExecute(
+        $conn,
+        "INSERT INTO assessment_attempts (user_id, assessment_id, score, passed)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE score = VALUES(score), passed = VALUES(passed), attempted_at = CURRENT_TIMESTAMP",
+        "iiii",
+        [$userId, $assessmentId, $score, $passed]
+    );
+
+    if ($passed) {
+        dbExecute(
+            $conn,
+            "UPDATE student_tasks st
+             JOIN assessments a ON a.task_id = st.task_id
+             SET st.status = 'completed', st.progress_percent = 100
+             WHERE st.user_id = ? AND a.assessment_id = ?",
+            "ii",
+            [$userId, $assessmentId]
+        );
+    }
+
+    return $passed === 1;
 }
 
 ?>
+// === LESSON QUIZ ATTEMPT HELPERS ===
+function ensureLessonQuizTables($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS lesson_quizzes (
+        quiz_id INT(11) NOT NULL AUTO_INCREMENT,
+        lesson_id INT(11) NOT NULL,
+        title VARCHAR(180) NOT NULL,
+        passing_score INT(11) NOT NULL DEFAULT 70,
+        PRIMARY KEY (quiz_id),
+        KEY idx_lesson_quizzes_lesson (lesson_id),
+        CONSTRAINT fk_lesson_quizzes_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $conn->query("CREATE TABLE IF NOT EXISTS lesson_quiz_attempts (
+        attempt_id INT(11) NOT NULL AUTO_INCREMENT,
+        user_id INT(11) NOT NULL,
+        quiz_id INT(11) NOT NULL,
+        score INT(11) NOT NULL DEFAULT 0,
+        passed TINYINT(1) NOT NULL DEFAULT 0,
+        attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (attempt_id),
+        UNIQUE KEY uq_lesson_quiz_attempt_user_quiz (user_id, quiz_id),
+        CONSTRAINT fk_lesson_quiz_attempts_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+        CONSTRAINT fk_lesson_quiz_attempts_quiz FOREIGN KEY (quiz_id) REFERENCES lesson_quizzes(quiz_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function getLessonQuizByLesson($conn, $lessonId) {
+    ensureLessonQuizTables($conn);
+    return dbFetchOne($conn, "SELECT * FROM lesson_quizzes WHERE lesson_id = ?", "i", [$lessonId]);
+}
+
+function getLessonQuizAttempt($conn, $userId, $quizId) {
+    ensureLessonQuizTables($conn);
+    return dbFetchOne($conn, "SELECT * FROM lesson_quiz_attempts WHERE user_id = ? AND quiz_id = ?", "ii", [$userId, $quizId]);
+}
+
+function createLessonQuizAttempt($conn, $userId, $quizId, $score = null) {
+    ensureLessonQuizTables($conn);
+    if ($score === null) {
+        $score = rand(70, 100);
+    }
+    $quiz = dbFetchOne($conn, "SELECT * FROM lesson_quizzes WHERE quiz_id = ?", "i", [$quizId]);
+    if (!$quiz) return false;
+    $passed = $score >= (int)$quiz['passing_score'] ? 1 : 0;
+    dbExecute(
+        $conn,
+        "INSERT INTO lesson_quiz_attempts (user_id, quiz_id, score, passed) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = VALUES(score), passed = VALUES(passed), attempted_at = CURRENT_TIMESTAMP",
+        "iiii",
+        [$userId, $quizId, $score, $passed]
+    );
+    return [ 'score' => $score, 'passed' => $passed ];
+}
+
+function hasCompletedLessonQuiz($conn, $userId, $lessonId) {
+    $quiz = getLessonQuizByLesson($conn, $lessonId);
+    if (!$quiz) return false;
+    $attempt = getLessonQuizAttempt($conn, $userId, $quiz['quiz_id']);
+    return $attempt && $attempt['passed'] == 1;
+}
+
+function getLessonQuizStatus($conn, $userId, $lessonId) {
+    $quiz = getLessonQuizByLesson($conn, $lessonId);
+    if (!$quiz) return [ 'available' => false ];
+    $attempt = getLessonQuizAttempt($conn, $userId, $quiz['quiz_id']);
+    if ($attempt) {
+        return [
+            'available' => true,
+            'completed' => $attempt['passed'] == 1,
+            'score' => $attempt['score'],
+            'attempted_at' => $attempt['attempted_at']
+        ];
+    }
+    return [ 'available' => true, 'completed' => false ];
+}

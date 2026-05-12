@@ -1,5 +1,6 @@
 <?php
 require_once '../auth_guard.php';
+require_once '../includes/student_functions.php';
 
 requireAdmin();
 
@@ -54,6 +55,12 @@ if(isset($_GET['approve'])){
     $stmt->bind_param("i",$id);
     $stmt->execute();
 
+    dbExecute($conn, "UPDATE user_applications SET status='approved' WHERE user_id = ?", "i", [$id]);
+    $user = $conn->query("SELECT email, full_name, role FROM users WHERE user_id = $id")->fetch_assoc();
+    if ($user) {
+        logEmail($conn, $user['email'], "Map My Future application approved", "Hi {$user['full_name']}, your {$user['role']} application has been approved. You can now sign in and continue.");
+    }
+
     redirect("verification_center.php");
 }
 
@@ -71,6 +78,12 @@ if(isset($_GET['reject'])){
     $stmt->bind_param("i",$id);
     $stmt->execute();
 
+    dbExecute($conn, "UPDATE user_applications SET status='rejected' WHERE user_id = ?", "i", [$id]);
+    $user = $conn->query("SELECT email, full_name FROM users WHERE user_id = $id")->fetch_assoc();
+    if ($user) {
+        logEmail($conn, $user['email'], "Map My Future application rejected", "Hi {$user['full_name']}, your mentor/employer application was not approved at this time. Please review the application requirements and try again.");
+    }
+
     redirect("verification_center.php");
 }
 
@@ -84,10 +97,11 @@ if(isset($_GET['reject'])){
 */
 
 $applicants = $conn->query("
-SELECT *
-FROM users
-WHERE role IN('mentor','employer')
-ORDER BY created_at DESC
+SELECT u.*, ua.organization_name, ua.application_note
+FROM users u
+LEFT JOIN user_applications ua ON ua.user_id = u.user_id
+WHERE u.role IN('mentor','employer')
+ORDER BY u.created_at DESC
 ");
 ?>
 
@@ -146,6 +160,11 @@ Verification
 <a href="analytics.php" class="navBtn">
 <i class="fa-solid fa-chart-pie"></i>
 Analytics
+</a>
+
+<a href="lesson_manager.php" class="navBtn">
+<i class="fa-solid fa-book-open"></i>
+Lessons
 </a>
 
 
@@ -304,16 +323,28 @@ Approve mentor and employer accounts
 
                     <h3 class="font-semibold truncate">
 
-                        <?= $row['full_name'] ?>
+                        <?= e($row['full_name']) ?>
 
                     </h3>
 
 
                     <p class="text-slate-400 text-sm truncate">
 
-                        <?= $row['email'] ?>
+                        <?= e($row['email']) ?>
 
                     </p>
+
+                    <?php if (!empty($row['organization_name'])): ?>
+                        <p class="text-slate-400 text-sm truncate">
+                            <?= e($row['organization_name']) ?>
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if (!empty($row['application_note'])): ?>
+                        <p class="text-slate-400 text-sm mt-1">
+                            <?= e($row['application_note']) ?>
+                        </p>
+                    <?php endif; ?>
 
                 </div>
 

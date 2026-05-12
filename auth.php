@@ -23,20 +23,22 @@ if(isset($_POST['register'])){
     $password = sanitize($_POST['password'] ?? '');
     $confirmPassword = sanitize($_POST['confirm_password'] ?? '');
     $role = sanitize($_POST['role'] ?? 'student');
-
+    $organizationName = sanitize($_POST['organization_name'] ?? '');
+    $applicationNote = sanitize($_POST['application_note'] ?? '');
 
     if($password !== $confirmPassword){
-
         $_SESSION['error'] = "Passwords do not match.";
         redirect("auth.php");
-
     }
 
+    if ($role !== 'student' && trim($applicationNote) === '') {
+        $_SESSION['error'] = "Please tell us why you're applying as a mentor or employer.";
+        redirect("auth.php");
+    }
 
-    $status = $role == "student"
+    $status = $role === "student"
         ? "approved"
         : "pending";
-
 
     $hashedPassword = password_hash(
         $password,
@@ -75,7 +77,6 @@ if(isset($_POST['register'])){
         VALUES(?,?,?,?,?,0)
     ");
 
-
     $stmt->bind_param(
         "sssss",
         $name,
@@ -85,16 +86,41 @@ if(isset($_POST['register'])){
         $status
     );
 
-
     if($stmt->execute()){
+        $userId = $stmt->insert_id;
+
+        if ($role !== 'student') {
+            $tableExists = $conn->query("SHOW TABLES LIKE 'user_applications'")->num_rows > 0;
+            if (!$tableExists) {
+                $conn->query(
+                    "CREATE TABLE IF NOT EXISTS user_applications (
+                        application_id INT(11) NOT NULL AUTO_INCREMENT,
+                        user_id INT(11) NOT NULL,
+                        role ENUM('mentor','employer') NOT NULL,
+                        organization_name VARCHAR(255) DEFAULT NULL,
+                        application_note TEXT DEFAULT NULL,
+                        status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (application_id),
+                        UNIQUE KEY uq_user_applications_user (user_id),
+                        CONSTRAINT fk_user_applications_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                );
+            }
+
+            $appStmt = $conn->prepare("
+                INSERT INTO user_applications
+                (user_id, role, organization_name, application_note, status)
+                VALUES (?, ?, ?, ?, 'pending')
+            ");
+            $appStmt->bind_param("isss", $userId, $role, $organizationName, $applicationNote);
+            $appStmt->execute();
+        }
 
         if($role=="student"){
-
             $_SESSION['success'] =
                 "Account created successfully.";
-
         }else{
-
             $_SESSION['success'] =
                 "Registration submitted for approval.";
         }
@@ -507,6 +533,27 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
 
 
+        <div id="applicationDetails" class="hidden bg-slate-800 border border-slate-700 rounded-3xl p-5 mb-6 space-y-4">
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">Company or Organization</label>
+                <input
+                    type="text"
+                    name="organization_name"
+                    placeholder="Company, school, or mentor network"
+                    class="w-full p-3 rounded-xl bg-slate-800"
+                >
+            </div>
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">Tell us about your experience</label>
+                <textarea
+                    name="application_note"
+                    rows="4"
+                    placeholder="Why should we approve your mentor or employer account?"
+                    class="w-full p-3 rounded-xl bg-slate-800 resize-none"
+                ></textarea>
+            </div>
+        </div>
+
         <button
             name="register"
             class="w-full bg-green-600 py-3 rounded-xl font-semibold hover:bg-green-500"
@@ -592,6 +639,15 @@ function showRegister(){
 
 
 
+function refreshApplicationDetails() {
+    const selectedRole = document.querySelector('input[name="role"]:checked')?.value;
+    const applicationDetails = document.getElementById('applicationDetails');
+
+    if (applicationDetails) {
+        applicationDetails.classList.toggle('hidden', selectedRole === 'student');
+    }
+}
+
 document
 .querySelectorAll('input[name="role"]')
 .forEach((radio)=>{
@@ -615,9 +671,12 @@ document
             "activeRole"
         );
 
+        refreshApplicationDetails();
     });
 
 });
+
+refreshApplicationDetails();
 
 
 </script>

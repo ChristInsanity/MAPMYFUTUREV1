@@ -115,7 +115,7 @@ const interval = setInterval(() => {
     if (rounded >= 100) {
         clearInterval(interval);
         setTimeout(() => {
-            window.location = 'dashboard.php';
+            window.location = 'roadmap.php';
         }, 450);
     }
 }, tickMs);
