@@ -835,6 +835,8 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
         [$subjectId]
     );
 
+    $previousLessonAllowsNext = true;
+
     foreach ($modules as $moduleIndex => $module) {
         $lessons = dbFetchAll(
             $conn,
@@ -859,6 +861,8 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
             );
             $lessons[$lessonIndex]['quiz_status'] = $quizAttempt['status'] ?? null;
             $lessons[$lessonIndex]['quiz_score'] = $quizAttempt['score'] ?? null;
+            $lessons[$lessonIndex]['lesson_available'] = $previousLessonAllowsNext || $lessons[$lessonIndex]['completed'];
+            $previousLessonAllowsNext = $lessons[$lessonIndex]['completed'] && (($quizAttempt['status'] ?? '') === 'completed');
         }
 
         $modules[$moduleIndex]['lessons'] = $lessons;
@@ -878,6 +882,38 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
         'subject' => $subject,
         'modules' => $modules
     ];
+}
+
+function isLessonAvailableInSequence($conn, $userId, $lessonId) {
+    $lesson = dbFetchOne(
+        $conn,
+        "SELECT ml.lesson_id, sm.subject_id
+         FROM module_lessons ml
+         JOIN subject_modules sm ON sm.module_id = ml.module_id
+         WHERE ml.lesson_id = ?",
+        "i",
+        [$lessonId]
+    );
+
+    if (!$lesson) {
+        return false;
+    }
+
+    $data = getSubjectLearningData($conn, $userId, (int)$lesson['subject_id']);
+
+    if (!$data) {
+        return false;
+    }
+
+    foreach ($data['modules'] as $module) {
+        foreach ($module['lessons'] as $item) {
+            if ((int)$item['lesson_id'] === $lessonId) {
+                return !empty($item['lesson_available']);
+            }
+        }
+    }
+
+    return false;
 }
 
 function recalculateSubjectProgress($conn, $userId, $subjectId) {
@@ -955,6 +991,10 @@ function markLessonComplete($conn, $userId, $lessonId) {
     );
 
     if (!$lesson || $lesson['subject_status'] === 'locked') {
+        return false;
+    }
+
+    if (!isLessonAvailableInSequence($conn, $userId, $lessonId)) {
         return false;
     }
 
@@ -1200,6 +1240,7 @@ function ensureMentorTables($conn) {
         "CREATE TABLE IF NOT EXISTS mentor_tasks (
             mentor_task_id INT(11) NOT NULL AUTO_INCREMENT,
             mentor_id INT(11) NOT NULL,
+            assigned_student_id INT(11) DEFAULT NULL,
             path_id INT(11) NOT NULL,
             subject_id INT(11) NOT NULL,
             lesson_id INT(11) NOT NULL,
@@ -1210,12 +1251,15 @@ function ensureMentorTables($conn) {
             points INT(11) NOT NULL DEFAULT 100,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (mentor_task_id),
+            KEY idx_mentor_tasks_assigned_student (assigned_student_id),
             CONSTRAINT fk_mentor_tasks_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_tasks_assigned_student FOREIGN KEY (assigned_student_id) REFERENCES users(user_id) ON DELETE CASCADE,
             CONSTRAINT fk_mentor_tasks_path FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE CASCADE,
             CONSTRAINT fk_mentor_tasks_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE,
             CONSTRAINT fk_mentor_tasks_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    ensureColumn($conn, 'mentor_tasks', 'assigned_student_id', "INT(11) DEFAULT NULL");
 
     $conn->query(
         "CREATE TABLE IF NOT EXISTS mentor_task_submissions (
@@ -1234,6 +1278,146 @@ function ensureMentorTables($conn) {
             UNIQUE KEY uq_mentor_task_submission (mentor_task_id, student_id),
             CONSTRAINT fk_mentor_task_submissions_task FOREIGN KEY (mentor_task_id) REFERENCES mentor_tasks(mentor_task_id) ON DELETE CASCADE,
             CONSTRAINT fk_mentor_task_submissions_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_assignments (
+            assignment_id INT(11) NOT NULL AUTO_INCREMENT,
+            student_id INT(11) NOT NULL,
+            mentor_id INT(11) NOT NULL,
+            status ENUM('active','completed','removed') NOT NULL DEFAULT 'active',
+            assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (assignment_id),
+            UNIQUE KEY uq_mentor_assignment_pair (student_id, mentor_id),
+            KEY idx_mentor_assignments_student (student_id),
+            KEY idx_mentor_assignments_mentor (mentor_id),
+            CONSTRAINT fk_mentor_assignments_student_runtime FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_assignments_mentor_runtime FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_messages (
+            message_id INT(11) NOT NULL AUTO_INCREMENT,
+            assignment_id INT(11) NOT NULL,
+            sender_id INT(11) NOT NULL,
+            message TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (message_id),
+            KEY idx_mentor_messages_assignment (assignment_id),
+            KEY idx_mentor_messages_sender (sender_id),
+            CONSTRAINT fk_mentor_messages_assignment_runtime FOREIGN KEY (assignment_id) REFERENCES mentor_assignments(assignment_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_messages_sender_runtime FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_portfolio_items (
+            item_id INT(11) NOT NULL AUTO_INCREMENT,
+            mentor_id INT(11) NOT NULL,
+            item_type ENUM('education','experience','skill','project') NOT NULL,
+            title VARCHAR(180) NOT NULL,
+            description TEXT DEFAULT NULL,
+            link_url VARCHAR(255) DEFAULT NULL,
+            file_path VARCHAR(255) DEFAULT NULL,
+            sort_order INT(11) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (item_id),
+            KEY idx_mentor_portfolio_items_mentor (mentor_id, item_type),
+            CONSTRAINT fk_mentor_portfolio_items_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS employer_invites (
+            invite_id INT(11) NOT NULL AUTO_INCREMENT,
+            employer_id INT(11) NOT NULL,
+            student_id INT(11) NOT NULL,
+            message TEXT DEFAULT NULL,
+            status ENUM('sent','accepted','declined') NOT NULL DEFAULT 'sent',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (invite_id),
+            UNIQUE KEY uq_employer_invite (employer_id, student_id),
+            CONSTRAINT fk_employer_invites_employer FOREIGN KEY (employer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_employer_invites_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS job_posts (
+            job_id INT(11) NOT NULL AUTO_INCREMENT,
+            employer_id INT(11) NOT NULL,
+            path_id INT(11) DEFAULT NULL,
+            title VARCHAR(180) NOT NULL,
+            department VARCHAR(180) DEFAULT NULL,
+            work_setup ENUM('onsite','hybrid','remote') NOT NULL DEFAULT 'onsite',
+            salary VARCHAR(120) DEFAULT NULL,
+            location VARCHAR(180) DEFAULT NULL,
+            employment_type VARCHAR(80) DEFAULT NULL,
+            description TEXT DEFAULT NULL,
+            responsibilities TEXT DEFAULT NULL,
+            required_skills TEXT DEFAULT NULL,
+            preferred_skills TEXT DEFAULT NULL,
+            application_deadline DATE DEFAULT NULL,
+            hiring_process TEXT DEFAULT NULL,
+            status ENUM('active','closed') NOT NULL DEFAULT 'active',
+            views INT(11) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (job_id),
+            KEY idx_job_posts_employer (employer_id),
+            CONSTRAINT fk_job_posts_employer_runtime FOREIGN KEY (employer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_job_posts_path_runtime FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    ensureColumn($conn, 'job_posts', 'department', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'work_setup', "ENUM('onsite','hybrid','remote') NOT NULL DEFAULT 'onsite'");
+    ensureColumn($conn, 'job_posts', 'salary', "VARCHAR(120) DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'location', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'employment_type', "VARCHAR(80) DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'responsibilities', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'required_skills', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'preferred_skills', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'application_deadline', "DATE DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'hiring_process', "TEXT DEFAULT NULL");
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS job_applications (
+            application_id INT(11) NOT NULL AUTO_INCREMENT,
+            job_id INT(11) NOT NULL,
+            user_id INT(11) NOT NULL,
+            status ENUM('submitted','reviewing','shortlisted','interview','hired','rejected') NOT NULL DEFAULT 'submitted',
+            resume_path VARCHAR(255) DEFAULT NULL,
+            cover_letter_path VARCHAR(255) DEFAULT NULL,
+            cover_letter TEXT DEFAULT NULL,
+            applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (application_id),
+            UNIQUE KEY uq_job_application (job_id, user_id),
+            CONSTRAINT fk_job_applications_job_runtime FOREIGN KEY (job_id) REFERENCES job_posts(job_id) ON DELETE CASCADE,
+            CONSTRAINT fk_job_applications_user_runtime FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    $conn->query("UPDATE job_applications SET status = 'reviewing' WHERE status IN ('reviewed','invited')");
+    $conn->query("ALTER TABLE job_applications MODIFY COLUMN status ENUM('submitted','reviewing','shortlisted','interview','hired','rejected') NOT NULL DEFAULT 'submitted'");
+    ensureColumn($conn, 'job_applications', 'resume_path', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'job_applications', 'cover_letter_path', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'job_applications', 'updated_at', "DATETIME DEFAULT NULL");
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS student_employment_history (
+            employment_id INT(11) NOT NULL AUTO_INCREMENT,
+            student_id INT(11) NOT NULL,
+            employer_id INT(11) NOT NULL,
+            job_id INT(11) NOT NULL,
+            position VARCHAR(180) NOT NULL,
+            hire_date DATE NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (employment_id),
+            UNIQUE KEY uq_student_job_hire (student_id, job_id),
+            CONSTRAINT fk_student_employment_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_student_employment_employer FOREIGN KEY (employer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_student_employment_job FOREIGN KEY (job_id) REFERENCES job_posts(job_id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
 
@@ -1367,15 +1551,20 @@ function getMentorsForStudentCareer($conn, $studentId) {
         $conn,
         "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
                 mp.degree, mp.specialization, mp.years_experience, mp.bio,
+                mp.linkedin_url, mp.github_url, mp.behance_url, mp.portfolio_url,
                 GROUP_CONCAT(cp.title ORDER BY cp.title SEPARATOR ', ') AS assigned_careers,
-                msr.status AS request_status
+                msr.status AS request_status,
+                COUNT(DISTINCT ms.mentor_student_id) AS total_students
          FROM mentor_career_assignments mca
          JOIN users u ON u.user_id = mca.mentor_id AND u.role = 'mentor' AND u.status = 'approved'
          LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
          JOIN career_paths cp ON cp.path_id = mca.career_path_id
          LEFT JOIN mentor_student_requests msr ON msr.mentor_id = u.user_id AND msr.student_id = ?
+         LEFT JOIN mentor_students ms ON ms.mentor_id = u.user_id AND ms.status = 'active'
          WHERE mca.career_path_id = ?
-         GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization, mp.years_experience, mp.bio, msr.status
+         GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization,
+                  mp.years_experience, mp.bio, mp.linkedin_url, mp.github_url, mp.behance_url,
+                  mp.portfolio_url, msr.status
          ORDER BY u.full_name",
         "ii",
         [$studentId, $careerPathId]
@@ -1575,9 +1764,180 @@ function getAvailableMentorTasksForStudent($conn, $studentId) {
          JOIN career_subjects cs ON cs.subject_id = mt.subject_id
          JOIN module_lessons ml ON ml.lesson_id = mt.lesson_id
          LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ?
+         WHERE mt.assigned_student_id IS NULL OR mt.assigned_student_id = ?
          ORDER BY mt.created_at DESC",
+        "iii",
+        [$studentId, $studentId, $studentId]
+    );
+}
+
+function getMentorRoomTasks($conn, $studentId, $mentorId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT mt.*, cs.subject_title, ml.title AS lesson_title,
+                mts.submission_id, mts.submission_file, mts.submission_link,
+                mts.status AS submission_status, mts.score, mts.comment, mts.submitted_at, mts.reviewed_at
+         FROM mentor_tasks mt
+         JOIN mentor_students ms ON ms.mentor_id = mt.mentor_id AND ms.subject_id = mt.subject_id AND ms.student_id = ? AND ms.status = 'active'
+         JOIN career_subjects cs ON cs.subject_id = mt.subject_id
+         JOIN module_lessons ml ON ml.lesson_id = mt.lesson_id
+         LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ?
+         WHERE mt.mentor_id = ? AND (mt.assigned_student_id IS NULL OR mt.assigned_student_id = ?)
+         ORDER BY ml.title, mt.created_at DESC",
+        "iiii",
+        [$studentId, $studentId, $mentorId, $studentId]
+    );
+}
+
+function getStudentMentorAssignment($conn, $studentId, $mentorId) {
+    ensureMentorTables($conn);
+
+    return dbFetchOne(
+        $conn,
+        "SELECT ma.*, u.full_name AS mentor_name, u.email AS mentor_email
+         FROM mentor_assignments ma
+         JOIN users u ON u.user_id = ma.mentor_id
+         WHERE ma.student_id = ? AND ma.mentor_id = ? AND ma.status = 'active'",
         "ii",
-        [$studentId, $studentId]
+        [$studentId, $mentorId]
+    );
+}
+
+function getMentorConversation($conn, $studentId, $mentorId) {
+    $assignment = getStudentMentorAssignment($conn, $studentId, $mentorId);
+
+    if (!$assignment) {
+        return [];
+    }
+
+    return dbFetchAll(
+        $conn,
+        "SELECT mm.*, u.full_name, u.role
+         FROM mentor_messages mm
+         JOIN users u ON u.user_id = mm.sender_id
+         WHERE mm.assignment_id = ?
+         ORDER BY mm.created_at ASC",
+        "i",
+        [(int)$assignment['assignment_id']]
+    );
+}
+
+function sendStudentMentorQuestion($conn, $studentId, $mentorId, $message) {
+    $assignment = getStudentMentorAssignment($conn, $studentId, $mentorId);
+    $message = trim($message);
+
+    if (!$assignment || $message === '') {
+        return false;
+    }
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO mentor_messages (assignment_id, sender_id, message) VALUES (?, ?, ?)",
+        "iis",
+        [(int)$assignment['assignment_id'], $studentId, $message]
+    );
+}
+
+function getMentorStudentsOverview($conn, $mentorId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT ms.*, u.full_name, u.email, sp.career_path, sp.readiness_score,
+                MAX(COALESCE(mts.submitted_at, mt.created_at, ms.created_at)) AS latest_activity,
+                COUNT(DISTINCT mt.mentor_task_id) AS assigned_tasks,
+                COUNT(DISTINCT CASE WHEN mts.status = 'submitted' THEN mts.submission_id END) AS pending_submissions
+         FROM mentor_students ms
+         JOIN users u ON u.user_id = ms.student_id
+         LEFT JOIN student_profiles sp ON sp.user_id = ms.student_id
+         LEFT JOIN mentor_tasks mt ON mt.mentor_id = ms.mentor_id
+            AND mt.subject_id = ms.subject_id
+            AND (mt.assigned_student_id IS NULL OR mt.assigned_student_id = ms.student_id)
+         LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ms.student_id
+         WHERE ms.mentor_id = ?
+         GROUP BY ms.mentor_student_id, ms.mentor_id, ms.student_id, ms.subject_id, ms.status, ms.created_at,
+                  u.full_name, u.email, sp.career_path, sp.readiness_score
+         ORDER BY latest_activity DESC",
+        "i",
+        [$mentorId]
+    );
+}
+
+function getMentorAssignableLessons($conn, $mentorId, $studentId = 0) {
+    ensureMentorTables($conn);
+
+    $params = [$mentorId];
+    $types = "i";
+    $studentFilter = "";
+
+    if ($studentId > 0) {
+        $studentFilter = " AND ms.student_id = ?";
+        $types .= "i";
+        $params[] = $studentId;
+    }
+
+    return dbFetchAll(
+        $conn,
+        "SELECT DISTINCT cp.path_id, cp.title AS career_title,
+                cs.subject_id, cs.subject_code, cs.subject_title,
+                ml.lesson_id, ml.title AS lesson_title
+         FROM mentor_career_assignments mca
+         JOIN career_paths cp ON cp.path_id = mca.career_path_id
+         JOIN career_years cy ON cy.path_id = cp.path_id
+         JOIN career_semesters csem ON csem.year_id = cy.year_id
+         JOIN career_subjects cs ON cs.semester_id = csem.semester_id
+         JOIN subject_modules sm ON sm.subject_id = cs.subject_id
+         JOIN module_lessons ml ON ml.module_id = sm.module_id
+         LEFT JOIN mentor_students ms ON ms.mentor_id = mca.mentor_id AND ms.subject_id = cs.subject_id AND ms.status = 'active'
+         WHERE mca.mentor_id = ? {$studentFilter}
+         ORDER BY cp.title, cs.subject_title, ml.title",
+        $types,
+        $params
+    );
+}
+
+function createMentorTask($conn, $mentorId, $studentId, $pathId, $subjectId, $lessonId, $title, $instructions, $resources, $deadline, $points) {
+    ensureMentorTables($conn);
+
+    $allowed = dbFetchOne(
+        $conn,
+        "SELECT cs.subject_id
+         FROM mentor_career_assignments mca
+         JOIN career_years cy ON cy.path_id = mca.career_path_id
+         JOIN career_semesters csem ON csem.year_id = cy.year_id
+         JOIN career_subjects cs ON cs.semester_id = csem.semester_id
+         JOIN subject_modules sm ON sm.subject_id = cs.subject_id
+         JOIN module_lessons ml ON ml.module_id = sm.module_id
+         WHERE mca.mentor_id = ? AND mca.career_path_id = ? AND cs.subject_id = ? AND ml.lesson_id = ?",
+        "iiii",
+        [$mentorId, $pathId, $subjectId, $lessonId]
+    );
+
+    if (!$allowed) {
+        return false;
+    }
+
+    if ($studentId > 0) {
+        $active = dbFetchOne(
+            $conn,
+            "SELECT mentor_student_id FROM mentor_students WHERE mentor_id = ? AND student_id = ? AND subject_id = ? AND status = 'active'",
+            "iii",
+            [$mentorId, $studentId, $subjectId]
+        );
+
+        if (!$active) {
+            return false;
+        }
+    }
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO mentor_tasks (mentor_id, assigned_student_id, path_id, subject_id, lesson_id, title, instructions, resources, deadline, points)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "iiiiissssi",
+        [$mentorId, $studentId > 0 ? $studentId : null, $pathId, $subjectId, $lessonId, $title, $instructions, $resources, $deadline ?: null, $points]
     );
 }
 
@@ -1612,6 +1972,503 @@ function saveMentorTaskSubmission($conn, $studentId, $taskId, $filePath, $link, 
         "iisss",
         [$taskId, $studentId, $filePath, $link, $notes]
     );
+}
+
+function getMentorPortfolioItems($conn, $mentorId) {
+    ensureMentorTables($conn);
+    $items = dbFetchAll(
+        $conn,
+        "SELECT * FROM mentor_portfolio_items WHERE mentor_id = ? ORDER BY item_type, sort_order, item_id",
+        "i",
+        [$mentorId]
+    );
+    $grouped = [
+        'education' => [],
+        'experience' => [],
+        'skill' => [],
+        'project' => []
+    ];
+
+    foreach ($items as $item) {
+        $grouped[$item['item_type']][] = $item;
+    }
+
+    return $grouped;
+}
+
+function replaceMentorPortfolioItems($conn, $mentorId, $type, $items) {
+    ensureMentorTables($conn);
+
+    if (!in_array($type, ['education', 'experience', 'skill', 'project'], true)) {
+        return false;
+    }
+
+    dbExecute($conn, "DELETE FROM mentor_portfolio_items WHERE mentor_id = ? AND item_type = ?", "is", [$mentorId, $type]);
+
+    foreach ($items as $index => $item) {
+        $title = sanitize($item['title'] ?? '');
+        if ($title === '') {
+            continue;
+        }
+
+        dbExecute(
+            $conn,
+            "INSERT INTO mentor_portfolio_items (mentor_id, item_type, title, description, link_url, file_path, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "isssssi",
+            [
+                $mentorId,
+                $type,
+                $title,
+                sanitize($item['description'] ?? ''),
+                sanitize($item['link_url'] ?? ''),
+                sanitize($item['file_path'] ?? ''),
+                $index
+            ]
+        );
+    }
+
+    return true;
+}
+
+function getEmployerDashboardStats($conn, $employerId) {
+    ensureMentorTables($conn);
+
+    $stats = [
+        'active_jobs' => 0,
+        'applicants' => 0,
+        'hires' => 0,
+        'views' => 0
+    ];
+
+    $row = dbFetchOne($conn, "SELECT COUNT(*) AS total, COALESCE(SUM(views), 0) AS views FROM job_posts WHERE employer_id = ? AND status = 'active'", "i", [$employerId]);
+    $stats['active_jobs'] = (int)($row['total'] ?? 0);
+    $stats['views'] = (int)($row['views'] ?? 0);
+
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(ja.application_id) AS applicants,
+                COUNT(CASE WHEN ja.status = 'hired' THEN 1 END) AS hires
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         WHERE jp.employer_id = ?",
+        "i",
+        [$employerId]
+    );
+    $stats['applicants'] = (int)($row['applicants'] ?? 0);
+    $stats['hires'] = (int)($row['hires'] ?? 0);
+
+    return $stats;
+}
+
+function getEmployerApplicants($conn, $employerId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT ja.application_id, ja.status, ja.applied_at,
+                jp.title AS job_title,
+                u.user_id, u.full_name, u.email,
+                sp.career_path, sp.readiness_score,
+                COUNT(DISTINCT pp.project_id) AS portfolio_projects,
+                COUNT(DISTINCT mc.certification_id) AS certifications,
+                ei.status AS invite_status
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id AND jp.employer_id = ?
+         JOIN users u ON u.user_id = ja.user_id
+         LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
+         LEFT JOIN portfolio_projects pp ON pp.user_id = u.user_id
+         LEFT JOIN mentor_certifications mc ON mc.user_id = u.user_id
+         LEFT JOIN employer_invites ei ON ei.employer_id = jp.employer_id AND ei.student_id = u.user_id
+         GROUP BY ja.application_id, ja.status, ja.applied_at, jp.title, u.user_id, u.full_name, u.email,
+                  sp.career_path, sp.readiness_score, ei.status
+         ORDER BY ja.applied_at DESC",
+        "i",
+        [$employerId]
+    );
+}
+
+function getEmployerApplicantDetails($conn, $employerId, $studentId) {
+    ensureMentorTables($conn);
+
+    $student = dbFetchOne(
+        $conn,
+        "SELECT DISTINCT u.user_id, u.full_name, u.email,
+                sp.career_path, sp.readiness_score, sp.skills, sp.ai_summary
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id AND jp.employer_id = ?
+         JOIN users u ON u.user_id = ja.user_id
+         LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
+         WHERE u.user_id = ?",
+        "ii",
+        [$employerId, $studentId]
+    );
+
+    if (!$student) {
+        return null;
+    }
+
+    $student['portfolio'] = getPortfolioProjects($conn, $studentId);
+    $student['certifications'] = dbFetchAll($conn, "SELECT title, file_path FROM mentor_certifications WHERE user_id = ? ORDER BY uploaded_at DESC", "i", [$studentId]);
+    return $student;
+}
+
+function inviteEmployerApplicant($conn, $employerId, $studentId, $message = '') {
+    ensureMentorTables($conn);
+
+    $exists = dbFetchOne(
+        $conn,
+        "SELECT ja.application_id
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id AND jp.employer_id = ?
+         WHERE ja.user_id = ?",
+        "ii",
+        [$employerId, $studentId]
+    );
+
+    if (!$exists) {
+        return false;
+    }
+
+    dbExecute(
+        $conn,
+        "UPDATE job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         SET ja.status = 'reviewing'
+         WHERE jp.employer_id = ? AND ja.user_id = ?",
+        "ii",
+        [$employerId, $studentId]
+    );
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO employer_invites (employer_id, student_id, message, status)
+         VALUES (?, ?, ?, 'sent')
+         ON DUPLICATE KEY UPDATE message = VALUES(message), status = 'sent', created_at = NOW()",
+        "iis",
+        [$employerId, $studentId, $message]
+    );
+}
+
+function parseSkillTags($value) {
+    $parts = preg_split('/[,;\n]+/', strtolower($value ?? ''));
+    $parts = array_map('trim', $parts);
+    return array_values(array_filter(array_unique($parts)));
+}
+
+function getStudentSkillSignals($conn, $studentId) {
+    $profile = getStudentProfile($conn, $studentId) ?: [];
+    $subjects = getStudentSubjectRows($conn, $studentId);
+    $completedSubjects = array_filter($subjects, fn($subject) => ($subject['status'] ?? '') === 'completed');
+    $completedQuizzes = getCompletedQuizAttempts($conn, $studentId, 100);
+    $projects = getPortfolioProjects($conn, $studentId);
+
+    $text = implode(' ', [
+        $profile['skills'] ?? '',
+        $profile['interests'] ?? '',
+        $profile['career_path'] ?? '',
+        implode(' ', array_map(fn($subject) => $subject['subject_title'] ?? '', $completedSubjects)),
+        implode(' ', array_map(fn($project) => ($project['title'] ?? '') . ' ' . ($project['description'] ?? ''), $projects))
+    ]);
+
+    return [
+        'profile' => $profile,
+        'completed_subjects' => count($completedSubjects),
+        'completed_quizzes' => count($completedQuizzes),
+        'projects' => count($projects),
+        'readiness' => (int)($profile['readiness_score'] ?? 0),
+        'text' => strtolower($text)
+    ];
+}
+
+function calculateJobCompatibility($conn, $studentId, $job) {
+    $signals = getStudentSkillSignals($conn, $studentId);
+    $requiredSkills = parseSkillTags($job['required_skills'] ?? '');
+    $matched = 0;
+
+    foreach ($requiredSkills as $skill) {
+        if ($skill !== '' && str_contains($signals['text'], $skill)) {
+            $matched++;
+        }
+    }
+
+    $skillScore = count($requiredSkills) > 0 ? (int)round(($matched / count($requiredSkills)) * 45) : 25;
+    $readinessScore = min(25, (int)round($signals['readiness'] * .25));
+    $subjectScore = min(15, $signals['completed_subjects'] * 3);
+    $quizScore = min(8, $signals['completed_quizzes'] * 2);
+    $projectScore = min(7, $signals['projects'] * 3);
+
+    return max(35, min(99, $skillScore + $readinessScore + $subjectScore + $quizScore + $projectScore));
+}
+
+function getRelevantJobsForStudent($conn, $studentId) {
+    ensureMentorTables($conn);
+    $pathId = getStudentCareerPathId($conn, $studentId);
+
+    if ($pathId === 0) {
+        return [];
+    }
+
+    $jobs = dbFetchAll(
+        $conn,
+        "SELECT jp.*, u.full_name AS employer_name, ep.company_name, ep.industry,
+                ja.status AS application_status
+         FROM job_posts jp
+         JOIN users u ON u.user_id = jp.employer_id
+         LEFT JOIN employer_profiles ep ON ep.user_id = jp.employer_id
+         LEFT JOIN job_applications ja ON ja.job_id = jp.job_id AND ja.user_id = ?
+         WHERE jp.status = 'active' AND (jp.path_id = ? OR jp.path_id IS NULL)
+         ORDER BY jp.created_at DESC",
+        "ii",
+        [$studentId, $pathId]
+    );
+
+    foreach ($jobs as $index => $job) {
+        $jobs[$index]['compatibility'] = calculateJobCompatibility($conn, $studentId, $job);
+    }
+
+    usort($jobs, fn($a, $b) => $b['compatibility'] <=> $a['compatibility']);
+    return $jobs;
+}
+
+function getJobDetailsForStudent($conn, $studentId, $jobId) {
+    ensureMentorTables($conn);
+    $pathId = getStudentCareerPathId($conn, $studentId);
+
+    $job = dbFetchOne(
+        $conn,
+        "SELECT jp.*, u.full_name AS employer_name, ep.company_name, ep.industry,
+                ja.application_id, ja.status AS application_status
+         FROM job_posts jp
+         JOIN users u ON u.user_id = jp.employer_id
+         LEFT JOIN employer_profiles ep ON ep.user_id = jp.employer_id
+         LEFT JOIN job_applications ja ON ja.job_id = jp.job_id AND ja.user_id = ?
+         WHERE jp.job_id = ? AND jp.status = 'active' AND (jp.path_id = ? OR jp.path_id IS NULL)",
+        "iii",
+        [$studentId, $jobId, $pathId]
+    );
+
+    if (!$job) {
+        return null;
+    }
+
+    $job['compatibility'] = calculateJobCompatibility($conn, $studentId, $job);
+    return $job;
+}
+
+function createJobApplication($conn, $studentId, $jobId, $resumePath, $coverLetterPath, $coverLetterText = '') {
+    ensureMentorTables($conn);
+    $job = getJobDetailsForStudent($conn, $studentId, $jobId);
+
+    if (!$job) {
+        return false;
+    }
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO job_applications (job_id, user_id, status, resume_path, cover_letter_path, cover_letter, applied_at, updated_at)
+         VALUES (?, ?, 'submitted', ?, ?, ?, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE
+            resume_path = VALUES(resume_path),
+            cover_letter_path = VALUES(cover_letter_path),
+            cover_letter = VALUES(cover_letter),
+            status = IF(status IN ('rejected'), 'submitted', status),
+            updated_at = NOW()",
+        "iisss",
+        [$jobId, $studentId, $resumePath, $coverLetterPath, $coverLetterText]
+    );
+}
+
+function createEmployerJob($conn, $employerId, $data) {
+    ensureMentorTables($conn);
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO job_posts
+         (employer_id, path_id, title, department, work_setup, salary, location, employment_type, description, responsibilities, required_skills, preferred_skills, application_deadline, hiring_process, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+        "iissssssssssss",
+        [
+            $employerId,
+            (int)($data['path_id'] ?? 0) ?: null,
+            sanitize($data['title'] ?? ''),
+            sanitize($data['department'] ?? ''),
+            sanitize($data['work_setup'] ?? 'onsite'),
+            sanitize($data['salary'] ?? ''),
+            sanitize($data['location'] ?? ''),
+            sanitize($data['employment_type'] ?? ''),
+            sanitize($data['description'] ?? ''),
+            sanitize($data['responsibilities'] ?? ''),
+            sanitize($data['required_skills'] ?? ''),
+            sanitize($data['preferred_skills'] ?? ''),
+            sanitize($data['application_deadline'] ?? ''),
+            sanitize($data['hiring_process'] ?? '')
+        ]
+    );
+}
+
+function getEmployerJobs($conn, $employerId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT jp.*, cp.title AS career_title,
+                COUNT(ja.application_id) AS applicant_count
+         FROM job_posts jp
+         LEFT JOIN career_paths cp ON cp.path_id = jp.path_id
+         LEFT JOIN job_applications ja ON ja.job_id = jp.job_id
+         WHERE jp.employer_id = ?
+         GROUP BY jp.job_id, cp.title
+         ORDER BY jp.created_at DESC",
+        "i",
+        [$employerId]
+    );
+}
+
+function getEmployerApplicantsByStage($conn, $employerId) {
+    ensureMentorTables($conn);
+
+    $rows = dbFetchAll(
+        $conn,
+        "SELECT ja.*, jp.title AS job_title, jp.employer_id, u.full_name, u.email,
+                sp.career_path, sp.readiness_score
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         JOIN users u ON u.user_id = ja.user_id
+         LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
+         WHERE jp.employer_id = ?
+         ORDER BY ja.updated_at DESC, ja.applied_at DESC",
+        "i",
+        [$employerId]
+    );
+
+    $stages = ['submitted' => [], 'reviewing' => [], 'shortlisted' => [], 'interview' => [], 'hired' => [], 'rejected' => []];
+    foreach ($rows as $row) {
+        $stages[$row['status']][] = $row;
+    }
+    return $stages;
+}
+
+function updateJobApplicationStatus($conn, $employerId, $applicationId, $status) {
+    ensureMentorTables($conn);
+
+    if (!in_array($status, ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'], true)) {
+        return false;
+    }
+
+    $application = dbFetchOne(
+        $conn,
+        "SELECT ja.*, jp.employer_id, jp.title
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         WHERE ja.application_id = ? AND jp.employer_id = ?",
+        "ii",
+        [$applicationId, $employerId]
+    );
+
+    if (!$application) {
+        return false;
+    }
+
+    dbExecute($conn, "UPDATE job_applications SET status = ?, updated_at = NOW() WHERE application_id = ?", "si", [$status, $applicationId]);
+
+    if ($status === 'hired') {
+        dbExecute(
+            $conn,
+            "INSERT INTO student_employment_history (student_id, employer_id, job_id, position, hire_date)
+             VALUES (?, ?, ?, ?, CURDATE())
+             ON DUPLICATE KEY UPDATE position = VALUES(position), hire_date = VALUES(hire_date)",
+            "iiis",
+            [(int)$application['user_id'], $employerId, (int)$application['job_id'], $application['title']]
+        );
+    }
+
+    return true;
+}
+
+function getSalesReportData($conn) {
+    ensureStudentSubscriptionsTable($conn);
+    ensureMentorTables($conn);
+
+    $totals = dbFetchOne(
+        $conn,
+        "SELECT COALESCE(SUM(amount), 0) AS total_revenue,
+                COALESCE(SUM(CASE WHEN YEAR(started_at) = YEAR(CURDATE()) AND MONTH(started_at) = MONTH(CURDATE()) THEN amount ELSE 0 END), 0) AS monthly_revenue,
+                COUNT(CASE WHEN status = 'active' AND (expires_at IS NULL OR expires_at > NOW()) THEN 1 END) AS active_premium_users
+         FROM student_subscriptions"
+    );
+
+    $mentorEnrollments = dbFetchOne($conn, "SELECT COUNT(*) AS total FROM mentor_student_requests WHERE status = 'accepted'");
+    $monthly = dbFetchAll(
+        $conn,
+        "SELECT DATE_FORMAT(started_at, '%Y-%m') AS label, COALESCE(SUM(amount), 0) AS total
+         FROM student_subscriptions
+         WHERE started_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+         GROUP BY DATE_FORMAT(started_at, '%Y-%m')
+         ORDER BY label"
+    );
+    $plans = dbFetchAll(
+        $conn,
+        "SELECT plan_type AS label, COUNT(*) AS total
+         FROM student_subscriptions
+         WHERE status = 'active'
+         GROUP BY plan_type
+         ORDER BY total DESC"
+    );
+    $mentorRevenue = dbFetchAll(
+        $conn,
+        "SELECT cp.title AS label, COALESCE(SUM(ss.amount), 0) AS total
+         FROM mentor_student_requests msr
+         JOIN student_profiles sp ON sp.user_id = msr.student_id
+         JOIN career_paths cp ON cp.path_id = sp.career_path_id
+         JOIN student_subscriptions ss ON ss.user_id = msr.student_id AND ss.status = 'active'
+         WHERE msr.status = 'accepted'
+         GROUP BY cp.path_id, cp.title
+         ORDER BY total DESC
+         LIMIT 8"
+    );
+    $jobPostings = dbFetchAll(
+        $conn,
+        "SELECT DATE_FORMAT(created_at, '%Y-%m') AS label, COUNT(*) AS total
+         FROM job_posts
+         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+         ORDER BY label"
+    );
+    $hiredStudents = dbFetchAll(
+        $conn,
+        "SELECT DATE_FORMAT(hire_date, '%Y-%m') AS label, COUNT(*) AS total
+         FROM student_employment_history
+         WHERE hire_date >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+         GROUP BY DATE_FORMAT(hire_date, '%Y-%m')
+         ORDER BY label"
+    );
+    $hiringTotals = dbFetchOne(
+        $conn,
+        "SELECT
+            (SELECT COUNT(*) FROM job_posts WHERE status = 'active') AS active_jobs,
+            (SELECT COUNT(*) FROM job_applications) AS applications,
+            (SELECT COUNT(*) FROM student_employment_history) AS hired_students"
+    );
+
+    return [
+        'totals' => [
+            'total_revenue' => (float)($totals['total_revenue'] ?? 0),
+            'monthly_revenue' => (float)($totals['monthly_revenue'] ?? 0),
+            'active_premium_users' => (int)($totals['active_premium_users'] ?? 0),
+            'mentor_enrollments' => (int)($mentorEnrollments['total'] ?? 0),
+            'employer_subscriptions' => 0,
+            'active_jobs' => (int)($hiringTotals['active_jobs'] ?? 0),
+            'applications' => (int)($hiringTotals['applications'] ?? 0),
+            'hired_students' => (int)($hiringTotals['hired_students'] ?? 0),
+            'refunds' => 0
+        ],
+        'monthly_sales' => $monthly,
+        'plan_distribution' => $plans,
+        'mentor_revenue' => $mentorRevenue,
+        'job_postings' => $jobPostings,
+        'hired_students' => $hiredStudents
+    ];
 }
 
 function getPortfolioProjects($conn, $userId) {

@@ -4,9 +4,10 @@ require_once '../includes/student_functions.php';
 
 requireStudent();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !validate_csrf($_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
-    jsonResponse(['success' => false, 'message' => 'Invalid security token.'], 403);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    jsonResponse(['success' => false, 'message' => 'Invalid request.'], 405);
 }
+require_csrf();
 
 $userId = (int)$_SESSION['user_id'];
 $lessonId = (int)($_POST['lesson_id'] ?? 0);
@@ -31,7 +32,9 @@ if ((int)$lesson['is_premium'] === 1 && !hasPremiumAccess($conn, $userId)) {
     jsonResponse(['success' => false, 'requires_premium' => true, 'message' => 'Premium is required for this lesson.'], 403);
 }
 
-markLessonComplete($conn, $userId, $lessonId);
+if (!markLessonComplete($conn, $userId, $lessonId)) {
+    jsonResponse(['success' => false, 'message' => 'Complete the previous lesson quiz before opening this lesson.'], 422);
+}
 
 if (!empty($lesson['lesson_file']) && file_exists(__DIR__ . '/../' . $lesson['lesson_file'])) {
     $target = '../' . $lesson['lesson_file'];

@@ -64,7 +64,7 @@ include '../header.php';
     </div>
 </div>
 
-<div class="grid lg:grid-cols-3 gap-6 mb-8">
+<div class="masonryCards mb-8">
     <section class="card">
         <h2 class="sectionTitle mb-5">Completed</h2>
         <div class="space-y-3">

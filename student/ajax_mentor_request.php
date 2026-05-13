@@ -4,9 +4,10 @@ require_once '../includes/student_functions.php';
 
 requireStudent();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !validate_csrf($_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
-    jsonResponse(['success' => false, 'message' => 'Invalid security token.'], 403);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    jsonResponse(['success' => false, 'message' => 'Invalid request.'], 405);
 }
+require_csrf();
 
 $userId = (int)$_SESSION['user_id'];
 

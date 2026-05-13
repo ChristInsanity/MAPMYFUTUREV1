@@ -1,44 +1,62 @@
 <?php
 $pageTitle = $pageTitle ?? 'Map My Future';
 $activePage = $activePage ?? 'dashboard';
-$inStudentDir = strpos($_SERVER['SCRIPT_NAME'] ?? '', '/student/') !== false;
-$inAdminDir = strpos($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') !== false;
-$inMentorDir = strpos($_SERVER['SCRIPT_NAME'] ?? '', '/mentor/') !== false;
-$rootPrefix = $inStudentDir ? '../' : '';
-$studentPrefix = $inStudentDir ? '' : 'student/';
+$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+$inStudentDir = strpos($scriptName, '/student/') !== false;
+$inAdminDir = strpos($scriptName, '/admin/') !== false;
+$inMentorDir = strpos($scriptName, '/mentor/') !== false;
+$inEmployerDir = strpos($scriptName, '/employer/') !== false;
 $breadcrumbs = $breadcrumbs ?? [];
+$rootPrefix = ($inStudentDir || $inAdminDir || $inMentorDir || $inEmployerDir) ? '../' : '';
+$studentPrefix = $inStudentDir ? '' : 'student/';
+$role = $_SESSION['role'] ?? 'student';
+$userName = $_SESSION['full_name'] ?? $_SESSION['name'] ?? 'User';
+$avatarInitial = strtoupper(substr($userName, 0, 1));
 
 if ($inAdminDir) {
-    $rootPrefix = '../';
     $brand = ['Admin Center', 'dashboard.php', 'fa-shield-halved'];
+    $roleLabel = 'Admin';
     $navItems = [
         'dashboard' => ['Dashboard', 'dashboard.php', 'fa-chart-line'],
-        'students' => ['Students', 'students.php', 'fa-user-graduate'],
-        'mentors' => ['Mentors', 'mentors.php', 'fa-chalkboard-user'],
-        'employers' => ['Employers', 'employers.php', 'fa-building'],
+        'students' => ['Users', 'students.php', 'fa-users'],
+        'sales' => ['Reports', 'sales_reports.php', 'fa-file-lines'],
+        'analytics' => ['Analytics', 'analytics.php', 'fa-chart-pie'],
+        'subscriptions' => ['Subscription Reports', 'sales_reports.php', 'fa-crown'],
         'verification' => ['Verification', 'verification_center.php', 'fa-user-check'],
-        'lessons' => ['Lessons', 'lesson_manager.php', 'fa-book-open'],
     ];
 } elseif ($inMentorDir) {
-    $rootPrefix = '../';
     $brand = ['Mentor Center', 'dashboard.php', 'fa-users'];
+    $roleLabel = 'Mentor';
     $navItems = [
         'dashboard' => ['Dashboard', 'dashboard.php', 'fa-house'],
+        'students' => ['Students', 'students.php', 'fa-user-graduate'],
+        'tasks' => ['Tasks', 'create_task.php', 'fa-list-check'],
+        'profile' => ['Profile', 'profile.php', 'fa-id-card'],
+        'portfolio' => ['Portfolio', 'portfolio.php', 'fa-folder-open'],
         'requests' => ['Requests', 'enrollment_requests.php', 'fa-user-plus'],
-        'tasks' => ['Create Task', 'create_task.php', 'fa-list-check'],
         'submissions' => ['Submissions', 'review_submission.php', 'fa-file-circle-check'],
+    ];
+} elseif ($inEmployerDir) {
+    $brand = ['Employer Center', 'dashboard.php', 'fa-building'];
+    $roleLabel = 'Employer';
+    $navItems = [
+        'dashboard' => ['Dashboard', 'dashboard.php', 'fa-chart-line'],
+        'jobs' => ['Job Posts', 'jobs.php', 'fa-briefcase'],
+        'applicants' => ['Applicants', 'applicants.php', 'fa-users'],
     ];
 } else {
     $brand = ['Map My Future', $studentPrefix . 'dashboard.php', 'fa-route'];
+    $roleLabel = 'Student';
     $navItems = [
         'dashboard' => ['Dashboard', $studentPrefix . 'dashboard.php', 'fa-house'],
-        'skill_gap' => ['Skill Gap', $studentPrefix . 'skill_gap.php', 'fa-bolt'],
         'roadmap' => ['Roadmap', $studentPrefix . 'roadmap.php', 'fa-route'],
-        'assessments' => ['Assessments', $studentPrefix . 'assessments.php', 'fa-brain'],
-        'mentors' => ['Mentors', $studentPrefix . 'mentors.php', 'fa-users'],
-        'mentor_tasks' => ['Tasks', $studentPrefix . 'mentor_tasks.php', 'fa-list-check'],
+        'assessments' => ['Assessment', $studentPrefix . 'assessments.php', 'fa-brain'],
+        'skill_gap' => ['Skill Gap', $studentPrefix . 'skill_gap.php', 'fa-bolt'],
+        'mentors' => ['Mentors', $studentPrefix . 'find_mentors.php', 'fa-users'],
         'subscription' => ['Premium', $studentPrefix . 'subscription.php', 'fa-crown'],
         'portfolio' => ['Portfolio', $studentPrefix . 'portfolio.php', 'fa-folder-open'],
+        'jobs' => ['Job Market', $studentPrefix . 'job_market.php', 'fa-briefcase'],
+        'mentor_tasks' => ['Tasks', $studentPrefix . 'mentor_tasks.php', 'fa-list-check'],
     ];
 }
 ?>
@@ -55,10 +73,16 @@ if ($inAdminDir) {
         body{background:#020B24;color:#fff;}
         .card,.statCard{background:#162338;border:1px solid #334155;padding:24px;border-radius:20px;}
         .sectionTitle{font-size:24px;font-weight:700;}
-        .navBtn,.navActive{display:flex;gap:8px;align-items:center;white-space:nowrap;}
-        .navActive{color:#60a5fa;}
-        .navBtn{color:#cbd5e1;}
-        .navBtn:hover{color:#93c5fd;}
+        .navBtn,.navActive{display:inline-flex;min-height:44px;gap:9px;align-items:center;justify-content:center;padding:10px 13px;border-radius:14px;white-space:nowrap;transition:.2s;font-size:14px;}
+        .navActive{color:#bfdbfe;background:#1e3a8a;border:1px solid rgba(59,130,246,.45);}
+        .navBtn{color:#cbd5e1;border:1px solid transparent;}
+        .navBtn:hover{color:#93c5fd;background:#162338;border-color:#334155;}
+        .topShell{position:sticky;top:0;z-index:50;background:rgba(2,11,36,.96);backdrop-filter:blur(14px);border-bottom:1px solid #334155;}
+        .mobileMenu{position:absolute;left:1rem;right:1rem;top:calc(100% + .5rem);background:#162338;border:1px solid #334155;border-radius:18px;padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.35);}
+        .navScroller{display:flex;gap:6px;overflow-x:auto;scroll-behavior:smooth;scrollbar-width:none;-ms-overflow-style:none;max-width:100%;}
+        .navScroller::-webkit-scrollbar{display:none;}
+        .navArrow{width:38px;min-width:38px;height:44px;border-radius:14px;background:#162338;border:1px solid #334155;color:#bfdbfe;display:inline-flex;align-items:center;justify-content:center;transition:.2s;}
+        .navArrow:hover{border-color:#3B82F6;background:#1e293b;}
         .quickBtn,.actionRow{display:flex;align-items:center;gap:12px;padding:16px;background:#162338;border:1px solid #334155;border-radius:16px;transition:.2s;}
         .quickBtn:hover,.actionRow:hover{background:#1e293b;border-color:#475569;}
         .inputStyle{width:100%;padding:14px 16px;background:#020B24;border:1px solid #334155;border-radius:14px;outline:none;}
@@ -69,44 +93,91 @@ if ($inAdminDir) {
         .secondaryBtn:hover{background:#263449;}
         .dangerBtn{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:#dc2626;padding:12px 18px;border-radius:14px;font-weight:700;}
         .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid #334155;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;}
-        .floatingBack{position:fixed;top:86px;left:18px;z-index:40;width:46px;height:46px;border-radius:999px;background:#162338;border:1px solid #334155;display:flex;align-items:center;justify-content:center;color:#bfdbfe;box-shadow:0 10px 28px rgba(0,0,0,.25);transition:.2s;}
+        .roleBadge{display:inline-flex;align-items:center;min-height:34px;border:1px solid rgba(59,130,246,.35);background:rgba(59,130,246,.12);color:#bfdbfe;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:800;}
+        .avatar{width:40px;height:40px;border-radius:999px;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-weight:800;}
+        .floatingBack{position:sticky;top:82px;z-index:30;width:max-content;max-width:100%;border-radius:999px;background:#162338;border:1px solid #334155;display:inline-flex;align-items:center;gap:9px;color:#bfdbfe;box-shadow:0 10px 28px rgba(0,0,0,.25);transition:.2s;padding:10px 14px;margin-bottom:18px;}
         .floatingBack:hover{transform:translateX(-3px);border-color:#3B82F6;box-shadow:0 0 22px rgba(59,130,246,.28);}
         .breadcrumbs{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#94a3b8;font-size:14px;margin-bottom:18px;}
         .breadcrumbs a{color:#bfdbfe;}
         .breadcrumbs i{font-size:11px;color:#475569;}
-        @media (max-width: 900px){.floatingBack{top:76px;left:12px;width:42px;height:42px;}}
+        .masonryCards{columns:1;column-gap:1.25rem;}
+        .masonryCards>*{break-inside:avoid;margin-bottom:1.25rem;}
+        @media (min-width:768px){.masonryCards{columns:2;}}
+        @media (min-width:1280px){.masonryCards{columns:3;}}
+        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}}
     </style>
 </head>
 <body class="min-h-screen">
-<nav class="border-b border-slate-800 sticky top-0 bg-[#020B24]/95 backdrop-blur z-50">
-    <div class="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex justify-between items-center gap-5">
-        <div class="flex items-center gap-8 min-w-0">
+<nav class="topShell">
+    <div class="max-w-7xl mx-auto px-4 lg:px-8 py-3">
+        <div class="flex items-center justify-between gap-4">
             <a href="<?= e($brand[1]) ?>" class="text-xl font-bold text-blue-400 flex items-center gap-3 shrink-0">
                 <i class="fa-solid <?= e($brand[2]) ?>"></i>
                 <?= e($brand[0]) ?>
             </a>
 
-            <div class="hidden xl:flex gap-6 text-sm overflow-x-auto">
-                <?php foreach ($navItems as $key => $item): ?>
-                    <a href="<?= e($item[1]) ?>" class="<?= $activePage === $key ? 'navActive' : 'navBtn' ?>">
-                        <i class="fa-solid <?= e($item[2]) ?>"></i>
-                        <?= e($item[0]) ?>
-                    </a>
-                <?php endforeach; ?>
+            <div class="hidden lg:grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 flex-1 min-w-0 max-w-4xl">
+                <button type="button" class="navArrow" data-nav-arrow="left" aria-label="Scroll navigation left">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <div class="navScroller" data-nav-scroller>
+                    <?php foreach ($navItems as $key => $item): ?>
+                        <a href="<?= e($item[1]) ?>" class="<?= $activePage === $key ? 'navActive' : 'navBtn' ?>">
+                            <i class="fa-solid <?= e($item[2]) ?>"></i>
+                            <?= e($item[0]) ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="navArrow" data-nav-arrow="right" aria-label="Scroll navigation right">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
             </div>
+
+            <div class="hidden lg:flex items-center gap-3 shrink-0">
+                <span class="roleBadge"><?= e($roleLabel) ?></span>
+                <div class="avatar"><?= e($avatarInitial) ?></div>
+                <a href="<?= e($rootPrefix) ?>logout.php" class="dangerBtn min-h-[44px] px-4 py-2">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    Logout
+                </a>
+            </div>
+
+            <button id="mobileMenuBtn" type="button" class="lg:hidden secondaryBtn min-h-[44px] px-4 py-2" aria-expanded="false" aria-controls="mobileMenu">
+                <i class="fa-solid fa-bars"></i>
+                Menu
+            </button>
         </div>
 
-        <div class="flex gap-2 sm:gap-3 shrink-0">
-            <?php if (!$inAdminDir && !$inMentorDir): ?>
-            <a href="<?= e($studentPrefix) ?>portfolio.php" class="hidden sm:inline-flex bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl items-center gap-2">
-                <i class="fa-solid fa-folder-open"></i>
-                Portfolio
-            </a>
-            <?php endif; ?>
-            <a href="<?= e($rootPrefix) ?>logout.php" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl flex items-center gap-2">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                Logout
-            </a>
+        <div id="mobileMenu" class="mobileMenu hidden lg:hidden">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-700 pb-3 mb-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="avatar shrink-0"><?= e($avatarInitial) ?></div>
+                    <div class="min-w-0">
+                        <p class="font-bold truncate"><?= e($userName) ?></p>
+                        <span class="roleBadge mt-1"><?= e($roleLabel) ?></span>
+                    </div>
+                </div>
+                <a href="<?= e($rootPrefix) ?>logout.php" class="dangerBtn min-h-[44px] px-4 py-2">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </a>
+            </div>
+
+            <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+                <button type="button" class="navArrow" data-nav-arrow="left" aria-label="Scroll mobile navigation left">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <div class="navScroller" data-nav-scroller>
+                    <?php foreach ($navItems as $key => $item): ?>
+                        <a href="<?= e($item[1]) ?>" class="<?= $activePage === $key ? 'navActive' : 'navBtn' ?>">
+                            <i class="fa-solid <?= e($item[2]) ?> w-5"></i>
+                            <?= e($item[0]) ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="navArrow" data-nav-arrow="right" aria-label="Scroll mobile navigation right">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
     </div>
 </nav>
@@ -115,6 +186,7 @@ if ($inAdminDir) {
 <?php if (!empty($backUrl)): ?>
     <a href="<?= e($backUrl) ?>" class="floatingBack" title="<?= e($backLabel ?? 'Back') ?>">
         <i class="fa-solid fa-arrow-left"></i>
+        <span><?= e($backLabel ?? 'Back') ?></span>
     </a>
 <?php endif; ?>
 
@@ -161,6 +233,34 @@ window.mmfPost = async function(url, data = {}, isFormData = false) {
     }
 
     const response = await fetch(url, options);
-    return await response.json();
+    const result = await response.json();
+
+    if (result.csrf_token) {
+        window.csrfToken = result.csrf_token;
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        if (tokenMeta) {
+            tokenMeta.content = result.csrf_token;
+        }
+    }
+
+    return result;
 };
+
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileMenu = document.getElementById('mobileMenu');
+mobileMenuBtn?.addEventListener('click', () => {
+    const isOpen = !mobileMenu.classList.contains('hidden');
+    mobileMenu.classList.toggle('hidden', isOpen);
+    mobileMenuBtn.setAttribute('aria-expanded', String(!isOpen));
+});
+
+document.querySelectorAll('[data-nav-arrow]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const wrapper = button.parentElement;
+        const scroller = wrapper?.querySelector('[data-nav-scroller]');
+        if (!scroller) return;
+        const direction = button.dataset.navArrow === 'left' ? -1 : 1;
+        scroller.scrollBy({left: direction * Math.max(180, scroller.clientWidth * 0.75), behavior: 'smooth'});
+    });
+});
 </script>

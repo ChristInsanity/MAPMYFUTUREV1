@@ -5,9 +5,7 @@ require_once '../includes/student_functions.php';
 requireAdmin();
 ensureMentorTables($conn);
 
-if (!validate_csrf($_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
-    jsonResponse(['success' => false, 'message' => 'Invalid security token.'], 403);
-}
+require_csrf();
 
 $action = sanitize($_POST['action'] ?? '');
 $userId = (int)($_POST['user_id'] ?? 0);

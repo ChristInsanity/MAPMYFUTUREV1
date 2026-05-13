@@ -111,6 +111,7 @@ include '../header.php';
                             <?php foreach ($module['lessons'] as $lesson): ?>
                                 <?php
                                     $lessonCompleted = $lesson['completed'] ?? false;
+                                    $lessonAvailable = $lesson['lesson_available'] ?? true;
                                     $statusBadge = $lessonCompleted ? 'COMPLETED' : 'NOT STARTED';
                                     $badgeClass = $lessonCompleted ? 'text-green-300 border-green-500/30 bg-green-500/10' : 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10';
                                 ?>
@@ -141,7 +142,12 @@ include '../header.php';
                                         </div>
                                     </div>
                                     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                                        <?php if ($lesson['is_premium'] && !$hasPremiumAccess): ?>
+                                        <?php if (!$lessonAvailable): ?>
+                                            <span class="badge text-slate-400 border-slate-600 bg-slate-800/80">
+                                                <i class="fa-solid fa-lock"></i>
+                                                Complete previous quiz
+                                            </span>
+                                        <?php elseif ($lesson['is_premium'] && !$hasPremiumAccess): ?>
                                             <a href="subscription.php" class="secondaryBtn">Upgrade to Premium</a>
                                         <?php else: ?>
                                             <button type="button" class="secondaryBtn readLessonBtn" data-lesson-id="<?= (int)$lesson['lesson_id'] ?>" data-subject-id="<?= (int)$subjectId ?>">
@@ -176,7 +182,7 @@ include '../header.php';
                                                 Completed
                                             </span>
                                         <?php else: ?>
-                                            <form method="POST">
+                                            <form method="POST" class="subjectActionForm">
                                                 <?= csrf_input() ?>
                                                 <input type="hidden" name="subject_id" value="<?= (int)$subjectId ?>">
                                                 <input type="hidden" name="task_id" value="<?= (int)$task['task_id'] ?>">
@@ -213,7 +219,7 @@ include '../header.php';
             </div>
 
             <?php if ($subject['status'] === 'available'): ?>
-                <form method="POST">
+                <form method="POST" class="subjectActionForm">
                     <?= csrf_input() ?>
                     <input type="hidden" name="subject_id" value="<?= (int)$subjectId ?>">
                     <input type="hidden" name="action" value="start_subject">
@@ -272,6 +278,18 @@ document.querySelectorAll('.readLessonBtn').forEach((button) => {
             alert(result.message || 'Unable to open lesson.');
             button.disabled = false;
             button.innerHTML = original;
+        }
+    });
+});
+
+document.querySelectorAll('.subjectActionForm').forEach(form => {
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const result = await window.mmfPost('ajax_subject_action.php', new FormData(form), true);
+        if (result.success) {
+            window.location.reload();
+        } else {
+            alert(result.message || 'Unable to update.');
         }
     });
 });

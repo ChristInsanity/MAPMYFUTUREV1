@@ -1,37 +1,57 @@
 <?php
 require_once '../auth_guard.php';
+require_once '../includes/student_functions.php';
 
 requireEmployer();
+
+$employerId = (int)$_SESSION['user_id'];
+$stats = getEmployerDashboardStats($conn, $employerId);
+
+$pageTitle = 'Employer Dashboard';
+$activePage = 'dashboard';
+$breadcrumbs = [
+    ['label' => 'Dashboard']
+];
+include '../header.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employer Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-</head>
-<body class="bg-[#020B24] text-white min-h-screen">
-<nav class="border-b border-slate-800 bg-[#020B24]/95">
-    <div class="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex justify-between items-center">
-        <div class="text-xl font-bold text-blue-400 flex items-center gap-3">
-            <i class="fa-solid fa-building"></i>
-            Employer Center
-        </div>
-        <a href="../logout.php" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl flex items-center gap-2">
-            <i class="fa-solid fa-right-from-bracket"></i>
-            Logout
-        </a>
-    </div>
-</nav>
+<div class="mb-8">
+    <p class="text-blue-300 font-semibold mb-2">Employer Center</p>
+    <h1 class="text-3xl lg:text-4xl font-bold mb-2">Hiring Dashboard</h1>
+    <p class="text-slate-400">Track job activity, applicants, hires, and student profile views from the database.</p>
+</div>
 
-<main class="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-    <div class="bg-[#162338] border border-[#334155] rounded-2xl p-8">
-        <h1 class="text-3xl font-bold mb-3">Employer Dashboard</h1>
-        <p class="text-slate-400">Your employer workspace is ready for job posts, applications, and talent matching.</p>
+<div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+    <?php
+    $cards = [
+        ['Active Jobs', $stats['active_jobs'], 'fa-briefcase'],
+        ['Applicants', $stats['applicants'], 'fa-users'],
+        ['Hires', $stats['hires'], 'fa-handshake'],
+        ['Views', $stats['views'], 'fa-eye']
+    ];
+    foreach ($cards as $card):
+    ?>
+        <div class="statCard">
+            <div class="flex justify-between text-slate-400 mb-3">
+                <p><?= e($card[0]) ?></p>
+                <i class="fa-solid <?= e($card[2]) ?> text-blue-300"></i>
+            </div>
+            <h2 class="text-3xl font-bold"><?= (int)$card[1] ?></h2>
+        </div>
+    <?php endforeach; ?>
+</div>
+
+<section class="card">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="sectionTitle mb-2">Applicant Review</h2>
+            <p class="text-slate-400">Review readiness scores, portfolios, and certifications.</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <a href="jobs.php" class="secondaryBtn"><i class="fa-solid fa-briefcase"></i> Manage Job Posts</a>
+            <a href="applicants.php" class="primaryBtn"><i class="fa-solid fa-user-check"></i> View Applicants</a>
+        </div>
     </div>
-</main>
-</body>
-</html>
+</section>
+
+<?php include '../footer.php'; ?>

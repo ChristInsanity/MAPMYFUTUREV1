@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS mentor_students (
 CREATE TABLE IF NOT EXISTS mentor_tasks (
     mentor_task_id INT(11) NOT NULL AUTO_INCREMENT,
     mentor_id INT(11) NOT NULL,
+    assigned_student_id INT(11) DEFAULT NULL,
     path_id INT(11) NOT NULL,
     subject_id INT(11) NOT NULL,
     lesson_id INT(11) NOT NULL,
@@ -193,11 +194,16 @@ CREATE TABLE IF NOT EXISTS mentor_tasks (
     points INT(11) NOT NULL DEFAULT 100,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (mentor_task_id),
+    KEY idx_mentor_tasks_assigned_student (assigned_student_id),
     CONSTRAINT fk_mentor_tasks_mentor_final FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mentor_tasks_assigned_student_final FOREIGN KEY (assigned_student_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_mentor_tasks_path_final FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE CASCADE,
     CONSTRAINT fk_mentor_tasks_subject_final FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE,
     CONSTRAINT fk_mentor_tasks_lesson_final FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE mentor_tasks
+    ADD COLUMN IF NOT EXISTS assigned_student_id INT(11) DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS mentor_task_submissions (
     submission_id INT(11) NOT NULL AUTO_INCREMENT,
@@ -215,4 +221,133 @@ CREATE TABLE IF NOT EXISTS mentor_task_submissions (
     UNIQUE KEY uq_mentor_task_submission (mentor_task_id, student_id),
     CONSTRAINT fk_mentor_task_submissions_task_final FOREIGN KEY (mentor_task_id) REFERENCES mentor_tasks(mentor_task_id) ON DELETE CASCADE,
     CONSTRAINT fk_mentor_task_submissions_student_final FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mentor_assignments (
+    assignment_id INT(11) NOT NULL AUTO_INCREMENT,
+    student_id INT(11) NOT NULL,
+    mentor_id INT(11) NOT NULL,
+    status ENUM('active','completed','removed') NOT NULL DEFAULT 'active',
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (assignment_id),
+    UNIQUE KEY uq_mentor_assignment_pair (student_id, mentor_id),
+    KEY idx_mentor_assignments_student (student_id),
+    KEY idx_mentor_assignments_mentor (mentor_id),
+    CONSTRAINT fk_mentor_assignments_student_final_runtime FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mentor_assignments_mentor_final_runtime FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mentor_messages (
+    message_id INT(11) NOT NULL AUTO_INCREMENT,
+    assignment_id INT(11) NOT NULL,
+    sender_id INT(11) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id),
+    KEY idx_mentor_messages_assignment (assignment_id),
+    KEY idx_mentor_messages_sender (sender_id),
+    CONSTRAINT fk_mentor_messages_assignment_final_runtime FOREIGN KEY (assignment_id) REFERENCES mentor_assignments(assignment_id) ON DELETE CASCADE,
+    CONSTRAINT fk_mentor_messages_sender_final_runtime FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mentor_portfolio_items (
+    item_id INT(11) NOT NULL AUTO_INCREMENT,
+    mentor_id INT(11) NOT NULL,
+    item_type ENUM('education','experience','skill','project') NOT NULL,
+    title VARCHAR(180) NOT NULL,
+    description TEXT DEFAULT NULL,
+    link_url VARCHAR(255) DEFAULT NULL,
+    file_path VARCHAR(255) DEFAULT NULL,
+    sort_order INT(11) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (item_id),
+    KEY idx_mentor_portfolio_items_mentor (mentor_id, item_type),
+    CONSTRAINT fk_mentor_portfolio_items_mentor_final FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS employer_invites (
+    invite_id INT(11) NOT NULL AUTO_INCREMENT,
+    employer_id INT(11) NOT NULL,
+    student_id INT(11) NOT NULL,
+    message TEXT DEFAULT NULL,
+    status ENUM('sent','accepted','declined') NOT NULL DEFAULT 'sent',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (invite_id),
+    UNIQUE KEY uq_employer_invite (employer_id, student_id),
+    CONSTRAINT fk_employer_invites_employer_final FOREIGN KEY (employer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_employer_invites_student_final FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS job_posts (
+    job_id INT(11) NOT NULL AUTO_INCREMENT,
+    employer_id INT(11) NOT NULL,
+    path_id INT(11) DEFAULT NULL,
+    title VARCHAR(180) NOT NULL,
+    department VARCHAR(180) DEFAULT NULL,
+    work_setup ENUM('onsite','hybrid','remote') NOT NULL DEFAULT 'onsite',
+    salary VARCHAR(120) DEFAULT NULL,
+    location VARCHAR(180) DEFAULT NULL,
+    employment_type VARCHAR(80) DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    responsibilities TEXT DEFAULT NULL,
+    required_skills TEXT DEFAULT NULL,
+    preferred_skills TEXT DEFAULT NULL,
+    application_deadline DATE DEFAULT NULL,
+    hiring_process TEXT DEFAULT NULL,
+    status ENUM('active','closed') NOT NULL DEFAULT 'active',
+    views INT(11) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (job_id),
+    KEY idx_job_posts_employer_final (employer_id),
+    CONSTRAINT fk_job_posts_employer_final_runtime FOREIGN KEY (employer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_job_posts_path_final_runtime FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE job_posts
+    ADD COLUMN IF NOT EXISTS department VARCHAR(180) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS work_setup ENUM('onsite','hybrid','remote') NOT NULL DEFAULT 'onsite',
+    ADD COLUMN IF NOT EXISTS salary VARCHAR(120) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS location VARCHAR(180) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS employment_type VARCHAR(80) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS responsibilities TEXT DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS required_skills TEXT DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS preferred_skills TEXT DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS application_deadline DATE DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS hiring_process TEXT DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS job_applications (
+    application_id INT(11) NOT NULL AUTO_INCREMENT,
+    job_id INT(11) NOT NULL,
+    user_id INT(11) NOT NULL,
+    status ENUM('submitted','reviewing','shortlisted','interview','hired','rejected') NOT NULL DEFAULT 'submitted',
+    resume_path VARCHAR(255) DEFAULT NULL,
+    cover_letter_path VARCHAR(255) DEFAULT NULL,
+    cover_letter TEXT DEFAULT NULL,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT NULL,
+    PRIMARY KEY (application_id),
+    UNIQUE KEY uq_job_application_final (job_id, user_id),
+    CONSTRAINT fk_job_applications_job_final_runtime FOREIGN KEY (job_id) REFERENCES job_posts(job_id) ON DELETE CASCADE,
+    CONSTRAINT fk_job_applications_user_final_runtime FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE job_applications
+    MODIFY COLUMN status ENUM('submitted','reviewing','shortlisted','interview','hired','rejected') NOT NULL DEFAULT 'submitted',
+    ADD COLUMN IF NOT EXISTS resume_path VARCHAR(255) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS cover_letter_path VARCHAR(255) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS updated_at DATETIME DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS student_employment_history (
+    employment_id INT(11) NOT NULL AUTO_INCREMENT,
+    student_id INT(11) NOT NULL,
+    employer_id INT(11) NOT NULL,
+    job_id INT(11) NOT NULL,
+    position VARCHAR(180) NOT NULL,
+    hire_date DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (employment_id),
+    UNIQUE KEY uq_student_job_hire (student_id, job_id),
+    CONSTRAINT fk_student_employment_student_final FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_student_employment_employer_final FOREIGN KEY (employer_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_student_employment_job_final FOREIGN KEY (job_id) REFERENCES job_posts(job_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

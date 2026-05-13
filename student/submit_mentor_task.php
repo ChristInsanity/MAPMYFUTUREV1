@@ -33,11 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $filePath = null;
 
     if (isset($_FILES['submission_file']) && !empty($_FILES['submission_file']['name'])) {
-        $allowed = ['pdf', 'zip', 'docx'];
+        $allowed = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
         $extension = strtolower(pathinfo($_FILES['submission_file']['name'], PATHINFO_EXTENSION));
 
         if (!in_array($extension, $allowed, true)) {
-            $error = 'Upload must be PDF, ZIP, or DOCX.';
+            $error = 'Upload must be PDF, DOC, DOCX, JPG, or PNG.';
         } else {
             $uploadDir = __DIR__ . '/../uploads/submissions';
             if (!is_dir($uploadDir)) {
@@ -90,17 +90,29 @@ include '../header.php';
             <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4 text-slate-300"><?= nl2br(e($task['resources'])) ?></div>
         <?php endif; ?>
     </section>
-    <form method="POST" enctype="multipart/form-data" class="card space-y-4">
+    <form id="taskSubmissionForm" method="POST" enctype="multipart/form-data" class="card space-y-4">
         <?= csrf_input() ?>
         <input type="hidden" name="mentor_task_id" value="<?= (int)$taskId ?>">
         <label>
             <span class="text-slate-400">Upload file</span>
-            <input type="file" name="submission_file" accept=".pdf,.zip,.docx" class="mt-2 w-full text-sm text-slate-200 file:bg-slate-800 file:border file:border-slate-700 file:rounded-xl file:px-4 file:py-2">
+            <input type="file" name="submission_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="mt-2 w-full text-sm text-slate-200 file:bg-slate-800 file:border file:border-slate-700 file:rounded-xl file:px-4 file:py-2">
         </label>
         <input type="url" name="submission_link" class="inputStyle" placeholder="https://link-to-work.example">
         <textarea name="notes" class="inputStyle min-h-[120px]" placeholder="Notes for your mentor"></textarea>
         <button class="primaryBtn w-full" type="submit"><i class="fa-solid fa-upload"></i> Submit</button>
     </form>
 </div>
+
+<script>
+document.getElementById('taskSubmissionForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const result = await window.mmfPost('ajax_task_submission.php', new FormData(event.currentTarget), true);
+    if (result.success) {
+        window.location = 'mentor_tasks.php';
+    } else {
+        alert(result.message || 'Unable to upload submission.');
+    }
+});
+</script>
 
 <?php include '../footer.php'; ?>
