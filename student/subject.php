@@ -17,6 +17,7 @@ if (!$data) {
 $subject = $data['subject'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $action = sanitize($_POST['action'] ?? '');
 
     if ($action === 'start_subject') {
@@ -34,18 +35,32 @@ $locked = $subject['status'] === 'locked';
 $data = getSubjectLearningData($conn, $userId, $subjectId);
 $subject = $data['subject'];
 $modules = $data['modules'];
+$totalLessons = 0;
+$completedLessons = 0;
+$readyQuizzes = 0;
+
+foreach ($modules as $module) {
+    foreach ($module['lessons'] as $lesson) {
+        $totalLessons++;
+        $completedLessons += !empty($lesson['completed']) ? 1 : 0;
+        $readyQuizzes += ($lesson['quiz_status'] ?? '') === 'ready' ? 1 : 0;
+    }
+}
 
 $pageTitle = $subject['subject_title'];
 $activePage = 'roadmap';
+$backUrl = 'roadmap.php';
+$backLabel = 'Back to Roadmap';
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => 'dashboard.php'],
+    ['label' => 'Roadmap', 'url' => 'roadmap.php'],
+    ['label' => 'Subject', 'url' => 'subject.php?id=' . $subjectId],
+    ['label' => $subject['subject_title']]
+];
 include '../header.php';
 ?>
 
 <div class="mb-8">
-    <a href="roadmap.php" class="text-blue-300 inline-flex items-center gap-2 mb-4">
-        <i class="fa-solid fa-arrow-left"></i>
-        Back to Roadmap
-    </a>
-
     <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
             <p class="text-blue-300 font-semibold mb-2">Year <?= (int)$subject['year_number'] ?> Semester <?= (int)$subject['semester_number'] ?></p>
@@ -56,6 +71,20 @@ include '../header.php';
             <?= e(readableStatus($subject['status'])) ?>
         </span>
     </div>
+    <?php if ($completedLessons > 0): ?>
+        <div class="mt-5 flex flex-wrap gap-3">
+            <span class="badge text-green-300 border-green-500/30 bg-green-500/10">
+                <i class="fa-solid fa-check"></i>
+                <?= (int)$completedLessons ?> of <?= (int)$totalLessons ?> lessons completed
+            </span>
+            <?php if ($readyQuizzes > 0): ?>
+                <span class="badge text-blue-300 border-blue-500/30 bg-blue-500/10">
+                    <i class="fa-solid fa-lock-open"></i>
+                    Assessment Unlocked
+                </span>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 </div>
 
 <div class="grid lg:grid-cols-3 gap-8">
@@ -84,12 +113,6 @@ include '../header.php';
                                     $lessonCompleted = $lesson['completed'] ?? false;
                                     $statusBadge = $lessonCompleted ? 'COMPLETED' : 'NOT STARTED';
                                     $badgeClass = $lessonCompleted ? 'text-green-300 border-green-500/30 bg-green-500/10' : 'text-yellow-300 border-yellow-500/30 bg-yellow-500/10';
-                                    $resourceUrl = $lesson['lesson_file'] ?: '';
-                                    $resourceExists = false;
-                                    if (!empty($lesson['lesson_file'])) {
-                                        $resourceExists = file_exists(__DIR__ . '/../' . $lesson['lesson_file']);
-                                    }
-                                    $pdfUrl = $resourceExists ? $resourceUrl : 'uploads/lessons/sample.pdf';
                                 ?>
                                 <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                     <div class="flex items-center gap-3">
@@ -97,6 +120,18 @@ include '../header.php';
                                         <div>
                                             <p class="font-semibold"><?= e($lesson['title']) ?></p>
                                             <span class="badge <?= $badgeClass ?> ml-2 text-xs align-middle"><?= $statusBadge ?></span>
+                                            <?php if ($lessonCompleted): ?>
+                                                <span class="badge text-green-300 border-green-500/30 bg-green-500/10 ml-2 text-xs align-middle">
+                                                    <i class="fa-solid fa-check"></i>
+                                                    Lesson Completed
+                                                </span>
+                                            <?php endif; ?>
+                                            <?php if (($lesson['quiz_status'] ?? '') === 'ready'): ?>
+                                                <span class="badge text-blue-300 border-blue-500/30 bg-blue-500/10 ml-2 text-xs align-middle">
+                                                    <i class="fa-solid fa-lock-open"></i>
+                                                    Assessment Unlocked
+                                                </span>
+                                            <?php endif; ?>
                                             <p class="text-slate-500 text-sm">
                                                 <?= e(ucfirst($lesson['content_type'])) ?> lesson
                                                 <?php if ($lesson['is_premium']): ?>
@@ -107,13 +142,12 @@ include '../header.php';
                                     </div>
                                     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
                                         <?php if ($lesson['is_premium'] && !$hasPremiumAccess): ?>
-                                            <a href="subscribe.php" class="secondaryBtn">Upgrade to Premium</a>
+                                            <a href="subscription.php" class="secondaryBtn">Upgrade to Premium</a>
                                         <?php else: ?>
-                                            <form method="POST" class="inline-flex" target="_blank" action="">
-                                                <input type="hidden" name="lesson_id" value="<?= (int)$lesson['lesson_id'] ?>">
-                                                <input type="hidden" name="action" value="complete_lesson">
-                                                <button type="submit" class="secondaryBtn" onclick="window.open('<?= e($pdfUrl) ?>','_blank');">READ LESSON</button>
-                                            </form>
+                                            <button type="button" class="secondaryBtn readLessonBtn" data-lesson-id="<?= (int)$lesson['lesson_id'] ?>" data-subject-id="<?= (int)$subjectId ?>">
+                                                <i class="fa-solid fa-book-open"></i>
+                                                READ LESSON
+                                            </button>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -143,6 +177,7 @@ include '../header.php';
                                             </span>
                                         <?php else: ?>
                                             <form method="POST">
+                                                <?= csrf_input() ?>
                                                 <input type="hidden" name="subject_id" value="<?= (int)$subjectId ?>">
                                                 <input type="hidden" name="task_id" value="<?= (int)$task['task_id'] ?>">
                                                 <input type="hidden" name="action" value="complete_task">
@@ -172,12 +207,14 @@ include '../header.php';
         <section class="card">
             <h2 class="sectionTitle mb-4">Subject Progress</h2>
             <div class="text-4xl font-bold mb-4"><?= (int)$subject['progress'] ?>%</div>
+            <p class="text-slate-400 mb-4"><?= (int)$completedLessons ?> of <?= (int)$totalLessons ?> lessons completed</p>
             <div class="bg-[#020B24] h-3 rounded-full overflow-hidden mb-5">
                 <div class="h-full bg-blue-500" style="width:<?= (int)$subject['progress'] ?>%"></div>
             </div>
 
             <?php if ($subject['status'] === 'available'): ?>
                 <form method="POST">
+                    <?= csrf_input() ?>
                     <input type="hidden" name="subject_id" value="<?= (int)$subjectId ?>">
                     <input type="hidden" name="action" value="start_subject">
                     <button class="primaryBtn w-full" type="submit">
@@ -214,5 +251,30 @@ include '../header.php';
         </section>
     </aside>
 </div>
+
+<script>
+document.querySelectorAll('.readLessonBtn').forEach((button) => {
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+        const original = button.innerHTML;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Opening...';
+        const result = await window.mmfPost('ajax_complete_lesson.php', {
+            lesson_id: button.dataset.lessonId,
+            subject_id: button.dataset.subjectId
+        });
+
+        if (result.success) {
+            window.open(result.pdf_url, '_blank');
+            window.location.reload();
+        } else if (result.requires_premium) {
+            window.location = 'subscription.php';
+        } else {
+            alert(result.message || 'Unable to open lesson.');
+            button.disabled = false;
+            button.innerHTML = original;
+        }
+    });
+});
+</script>
 
 <?php include '../footer.php'; ?>

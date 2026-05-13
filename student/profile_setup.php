@@ -56,6 +56,7 @@ $studentTypes = [
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
+    require_csrf();
     $studentType = sanitize($_POST['student_type'] ?? '');
     $favoriteSubjects = $_POST['favorite_subjects'] ?? [];
     $activityPreferences = $_POST['activity_preferences'] ?? [];
@@ -137,6 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
     <?php endif; ?>
 
     <form method="POST" class="bg-[#162338] border border-[#334155] rounded-3xl p-8 lg:p-10">
+        <?= csrf_input() ?>
         <div class="flex items-center justify-between mb-8 gap-4">
             <div>
                 <p class="text-slate-400">Onboarding progress</p>

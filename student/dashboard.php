@@ -18,6 +18,7 @@ $subjects = getStudentSubjectRows($conn, $userId);
 $roadmap = getRoadmapByYear($conn, $userId);
 $mentor = getFeaturedMentor($conn, $userId);
 $currentSubjectUrl = $progress['current_subject_id'] > 0 ? 'subject.php?id=' . (int)$progress['current_subject_id'] : 'roadmap.php';
+$subscription = getActiveSubscription($conn, $userId);
 
 $pageTitle = 'Student Dashboard';
 $activePage = 'dashboard';
@@ -36,6 +37,13 @@ include '../header.php';
             Continue Learning
         </a>
     </div>
+
+    <?php if ($subscription): ?>
+        <div class="mb-6 inline-flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-2xl px-5 py-3 text-green-200 font-bold">
+            <i class="fa-solid fa-crown"></i>
+            PREMIUM ACTIVE
+        </div>
+    <?php endif; ?>
 
     <div class="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
         <div class="flex gap-3 items-center mb-2 text-blue-300">
@@ -74,10 +82,10 @@ include '../header.php';
 
     <div class="statCard">
         <div class="flex justify-between mb-3 text-slate-400">
-            <p>Mentor Status</p>
-            <i class="fa-solid fa-users text-purple-400"></i>
+            <p>Plan</p>
+            <i class="fa-solid fa-crown text-yellow-400"></i>
         </div>
-        <h2 class="text-2xl font-bold"><?= e($progress['mentor_status']) ?></h2>
+        <h2 class="text-2xl font-bold"><?= e($progress['premium_status']) ?></h2>
     </div>
 </div>
 
@@ -172,6 +180,7 @@ include '../header.php';
                 <a href="<?= e($currentSubjectUrl) ?>" class="quickBtn"><i class="fa-solid fa-play text-blue-400"></i> Continue Learning</a>
                 <a href="roadmap.php" class="quickBtn"><i class="fa-solid fa-route text-green-400"></i> View Roadmap</a>
                 <a href="mentors.php" class="quickBtn"><i class="fa-solid fa-users text-purple-400"></i> Mentor Support</a>
+                <a href="subscription.php" class="quickBtn"><i class="fa-solid fa-crown text-yellow-400"></i> Premium Plan</a>
                 <a href="portfolio.php" class="quickBtn"><i class="fa-solid fa-folder-open text-yellow-400"></i> Portfolio</a>
             </div>
         </section>

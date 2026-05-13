@@ -14,6 +14,7 @@ if (!$profile) {
 $error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_project'])) {
+    require_csrf();
     $title = sanitize($_POST['title'] ?? '');
     $description = sanitize($_POST['description'] ?? '');
     $githubLink = sanitize($_POST['github_link'] ?? '');
@@ -77,6 +78,7 @@ include '../header.php';
             <?php endif; ?>
 
             <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                <?= csrf_input() ?>
                 <input class="inputStyle" name="title" required placeholder="Project title">
                 <textarea class="inputStyle min-h-[130px]" name="description" required placeholder="What did you build and what skills does it prove?"></textarea>
                 <input class="inputStyle" name="github_link" type="url" placeholder="GitHub link">

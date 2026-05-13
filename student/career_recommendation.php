@@ -32,6 +32,7 @@ $message = $profile['ai_summary'] ?? 'Map My Future has prepared your personaliz
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $selectedPathId = (int)($_POST['path_id'] ?? 0);
 
     if ($selectedPathId <= 0) {
@@ -102,6 +103,7 @@ include '../header.php';
     </div>
 
     <form method="POST" class="space-y-4">
+        <?= csrf_input() ?>
         <?php foreach ($careerMatches as $index => $match): ?>
             <label class="careerCardItem block bg-[#162338] border border-[#334155] rounded-3xl p-5 cursor-pointer hover:border-blue-500 transition-all">
                 <input type="radio" name="path_id" value="<?= (int)$match['path_id'] ?>" class="hidden" <?= $index === 0 ? 'checked' : '' ?> required>

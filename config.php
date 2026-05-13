@@ -42,6 +42,17 @@
 
     // Redirect
     function redirect($url) {
+        if (function_exists('isAjaxRequest') && isAjaxRequest()) {
+            $error = $_SESSION['error'] ?? null;
+            $success = $_SESSION['success'] ?? null;
+            unset($_SESSION['error'], $_SESSION['success']);
+            jsonResponse([
+                'success' => $error === null,
+                'message' => $error ?? $success ?? 'Done.',
+                'redirect' => $url
+            ], $error === null ? 200 : 422);
+        }
+
         header("Location: $url");
         exit;
     }
@@ -112,5 +123,52 @@
 
     function e($value) {
         return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+    }
+
+    function csrf_token() {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION['csrf_token'];
+    }
+
+    function csrf_input() {
+        return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
+    }
+
+    function isAjaxRequest() {
+        return strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
+            || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
+    }
+
+    function jsonResponse($data, $statusCode = 200) {
+        http_response_code($statusCode);
+        header('Content-Type: application/json');
+        echo json_encode($data);
+        exit;
+    }
+
+    function validate_csrf($token = null) {
+        $token = $token
+            ?? ($_POST['csrf_token'] ?? '')
+            ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+
+        return is_string($token)
+            && isset($_SESSION['csrf_token'])
+            && hash_equals($_SESSION['csrf_token'], $token);
+    }
+
+    function require_csrf() {
+        if (!validate_csrf($_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
+            if (isAjaxRequest()) {
+                jsonResponse(['success' => false, 'message' => 'Invalid security token. Please refresh and try again.'], 403);
+            }
+
+            $_SESSION['error'] = 'Invalid security token. Please refresh and try again.';
+            $script = $_SERVER['SCRIPT_NAME'] ?? '';
+            $prefix = (str_contains($script, '/student/') || str_contains($script, '/admin/') || str_contains($script, '/mentor/') || str_contains($script, '/employer/')) ? '../' : '';
+            redirect($prefix . 'auth.php');
+        }
     }
     ?>

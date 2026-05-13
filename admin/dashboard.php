@@ -66,6 +66,22 @@ SELECT COUNT(*) total
 FROM student_tasks
 ")->fetch_assoc()['total'] ?? 0;
 
+$recentUsers=$conn->query("
+SELECT full_name, role, created_at
+FROM users
+ORDER BY created_at DESC
+LIMIT 4
+");
+
+$careerTrends=$conn->query("
+SELECT career_path, COUNT(*) total
+FROM student_profiles
+WHERE career_path IS NOT NULL AND career_path <> ''
+GROUP BY career_path
+ORDER BY total DESC, career_path
+LIMIT 6
+");
+
 ?>
 
 <!DOCTYPE html>
@@ -112,7 +128,7 @@ Admin Center
 <div class="hidden xl:flex gap-6 text-slate-300 text-sm">
 
 
-<a href="#" class="navActive">
+<a href="dashboard.php" class="navActive">
 <i class="fa-solid fa-chart-line"></i>
 Dashboard
 </a>
@@ -299,45 +315,15 @@ Recent Platform Activity
 
 <div class="space-y-4">
 
+<?php while($activity=$recentUsers->fetch_assoc()): ?>
 
 <div class="activityItem">
-
 <i class="fa-solid fa-user-plus text-blue-400"></i>
-
-New student registration
-
+<?= e($activity['full_name']) ?> registered as <?= e($activity['role']) ?>
+<span class="ml-auto text-slate-500 text-sm"><?= e(date('M d', strtotime($activity['created_at']))) ?></span>
 </div>
 
-
-
-<div class="activityItem">
-
-<i class="fa-solid fa-chalkboard-user text-purple-400"></i>
-
-Mentor application submitted
-
-</div>
-
-
-
-<div class="activityItem">
-
-<i class="fa-solid fa-building text-green-400"></i>
-
-Employer partnership request
-
-</div>
-
-
-
-<div class="activityItem">
-
-<i class="fa-solid fa-route text-yellow-400"></i>
-
-Student roadmap generated
-
-</div>
-
+<?php endwhile; ?>
 
 </div>
 
@@ -363,34 +349,11 @@ Top Career Trends
 
 <div class="flex flex-wrap gap-3">
 
-
+<?php while($trend=$careerTrends->fetch_assoc()): ?>
 <span class="trendTag">
-
-UI/UX
-
+<?= e($trend['career_path']) ?> (<?= (int)$trend['total'] ?>)
 </span>
-
-
-<span class="trendTag">
-
-Full Stack
-
-</span>
-
-
-<span class="trendTag">
-
-Cybersecurity
-
-</span>
-
-
-<span class="trendTag">
-
-Data Analyst
-
-</span>
-
+<?php endwhile; ?>
 
 </div>
 

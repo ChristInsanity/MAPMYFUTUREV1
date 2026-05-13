@@ -51,6 +51,53 @@ function dbExecute($conn, $sql, $types = '', $params = []) {
     return $stmt->execute();
 }
 
+function dbTableExists($conn, $table) {
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(*) AS found FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+        "s",
+        [$table]
+    );
+
+    return (int)($row['found'] ?? 0) > 0;
+}
+
+function dbColumnExists($conn, $table, $column) {
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(*) AS found FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+        "ss",
+        [$table, $column]
+    );
+
+    return (int)($row['found'] ?? 0) > 0;
+}
+
+function dbIndexExists($conn, $table, $index) {
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(*) AS found FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?",
+        "ss",
+        [$table, $index]
+    );
+
+    return (int)($row['found'] ?? 0) > 0;
+}
+
+function ensureColumn($conn, $table, $column, $definition) {
+    if (!dbColumnExists($conn, $table, $column)) {
+        $conn->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+    }
+}
+
+function ensurePlatformTables($conn) {
+    ensureModuleLessonsSchema($conn);
+    ensureLessonProgressTable($conn);
+    ensureQuizAttemptsTable($conn);
+    ensureStudentSubscriptionsTable($conn);
+    ensureMentorTables($conn);
+}
+
 function getStudentProfile($conn, $userId) {
     return dbFetchOne(
         $conn,
@@ -329,9 +376,12 @@ function ensureStudentSubscriptionsTable($conn) {
         "CREATE TABLE IF NOT EXISTS student_subscriptions (
             subscription_id INT(11) NOT NULL AUTO_INCREMENT,
             user_id INT(11) NOT NULL,
-            plan VARCHAR(100) NOT NULL,
+            plan VARCHAR(100) NOT NULL DEFAULT 'free',
             plan_type VARCHAR(50) NOT NULL DEFAULT 'free',
+            amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            duration_months INT(11) NOT NULL DEFAULT 0,
             status ENUM('active','cancelled','expired') NOT NULL DEFAULT 'active',
+            payment_method VARCHAR(80) DEFAULT NULL,
             started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             expires_at DATETIME DEFAULT NULL,
             PRIMARY KEY (subscription_id),
@@ -340,27 +390,77 @@ function ensureStudentSubscriptionsTable($conn) {
             CONSTRAINT fk_student_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
-    return $conn->query("ALTER TABLE student_subscriptions ADD COLUMN IF NOT EXISTS plan_type VARCHAR(50) NOT NULL DEFAULT 'free'");
+    ensureColumn($conn, 'student_subscriptions', 'plan_type', "VARCHAR(50) NOT NULL DEFAULT 'free'");
+    ensureColumn($conn, 'student_subscriptions', 'amount', "DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+    ensureColumn($conn, 'student_subscriptions', 'duration_months', "INT(11) NOT NULL DEFAULT 0");
+    ensureColumn($conn, 'student_subscriptions', 'payment_method', "VARCHAR(80) DEFAULT NULL");
+
+    if (!dbIndexExists($conn, 'student_subscriptions', 'uq_student_subscriptions_user')) {
+        $conn->query(
+            "DELETE s1 FROM student_subscriptions s1
+             JOIN student_subscriptions s2
+             ON s1.user_id = s2.user_id
+             AND s1.subscription_id < s2.subscription_id"
+        );
+        $conn->query("ALTER TABLE student_subscriptions ADD UNIQUE KEY uq_student_subscriptions_user (user_id)");
+    }
+
+    return true;
 }
 
 function ensureLessonProgressTable($conn) {
-    return $conn->query(
+    $conn->query(
         "CREATE TABLE IF NOT EXISTS lesson_progress (
-            lesson_progress_id INT(11) NOT NULL AUTO_INCREMENT,
+            progress_id INT(11) NOT NULL AUTO_INCREMENT,
             user_id INT(11) NOT NULL,
             lesson_id INT(11) NOT NULL,
+            subject_id INT(11) NOT NULL,
+            status ENUM('completed') NOT NULL DEFAULT 'completed',
             completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (lesson_progress_id),
+            PRIMARY KEY (progress_id),
             UNIQUE KEY uq_lesson_progress_user_lesson (user_id, lesson_id),
+            KEY idx_lesson_progress_subject (subject_id),
             CONSTRAINT fk_lesson_progress_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-            CONSTRAINT fk_lesson_progress_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
+            CONSTRAINT fk_lesson_progress_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE,
+            CONSTRAINT fk_lesson_progress_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+
+    if (dbColumnExists($conn, 'lesson_progress', 'lesson_progress_id') && !dbColumnExists($conn, 'lesson_progress', 'progress_id')) {
+        $conn->query("ALTER TABLE lesson_progress CHANGE lesson_progress_id progress_id INT(11) NOT NULL AUTO_INCREMENT");
+    }
+
+    ensureColumn($conn, 'lesson_progress', 'subject_id', "INT(11) NOT NULL DEFAULT 0");
+    ensureColumn($conn, 'lesson_progress', 'status', "ENUM('completed') NOT NULL DEFAULT 'completed'");
+    return true;
+}
+
+function ensureQuizAttemptsTable($conn) {
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS quiz_attempts (
+            attempt_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            lesson_id INT(11) NOT NULL,
+            subject_id INT(11) NOT NULL,
+            score INT(11) DEFAULT NULL,
+            status ENUM('ready','completed') NOT NULL DEFAULT 'ready',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (attempt_id),
+            UNIQUE KEY uq_quiz_attempt_user_lesson (user_id, lesson_id),
+            KEY idx_quiz_attempts_subject (subject_id),
+            CONSTRAINT fk_quiz_attempts_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_quiz_attempts_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE,
+            CONSTRAINT fk_quiz_attempts_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    return true;
 }
 
 function ensureModuleLessonsSchema($conn) {
-    $conn->query("ALTER TABLE module_lessons ADD COLUMN IF NOT EXISTS lesson_file VARCHAR(255) DEFAULT NULL");
-    $conn->query("ALTER TABLE module_lessons ADD COLUMN IF NOT EXISTS is_premium TINYINT(1) NOT NULL DEFAULT 0");
+    ensureColumn($conn, 'module_lessons', 'lesson_file', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'module_lessons', 'is_premium', "TINYINT(1) NOT NULL DEFAULT 0");
     $conn->query("ALTER TABLE module_lessons MODIFY COLUMN content_type ENUM('video','pdf','text','article') NOT NULL");
 }
 
@@ -379,13 +479,35 @@ function hasPremiumAccess($conn, $userId) {
     return getActiveSubscription($conn, $userId) !== null;
 }
 
+function activatePremiumSubscription($conn, $userId, $planType, $amount, $durationMonths, $paymentMethod) {
+    ensureStudentSubscriptionsTable($conn);
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+' . (int)$durationMonths . ' months'));
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO student_subscriptions (user_id, plan, plan_type, amount, duration_months, status, payment_method, started_at, expires_at)
+         VALUES (?, 'premium', ?, ?, ?, 'active', ?, NOW(), ?)
+         ON DUPLICATE KEY UPDATE
+            plan = VALUES(plan),
+            plan_type = VALUES(plan_type),
+            amount = VALUES(amount),
+            duration_months = VALUES(duration_months),
+            status = 'active',
+            payment_method = VALUES(payment_method),
+            started_at = NOW(),
+            expires_at = VALUES(expires_at)",
+        "isdiis",
+        [$userId, $planType, $amount, $durationMonths, $paymentMethod, $expiresAt]
+    );
+}
+
 function getCompletedLessonCount($conn, $userId) {
     ensureLessonProgressTable($conn);
     $row = dbFetchOne(
         $conn,
-        "SELECT COUNT(lp.lesson_progress_id) AS completed_lessons
+        "SELECT COUNT(lp.progress_id) AS completed_lessons
          FROM lesson_progress lp
-         WHERE lp.user_id = ?",
+         WHERE lp.user_id = ? AND lp.status = 'completed'",
         "i",
         [$userId]
     );
@@ -395,18 +517,15 @@ function getCompletedLessonCount($conn, $userId) {
 
 function getPendingLessonQuizCount($conn, $userId) {
     ensureLessonProgressTable($conn);
-    ensureLessonQuizTables($conn);
+    ensureQuizAttemptsTable($conn);
 
     $row = dbFetchOne(
         $conn,
         "SELECT COUNT(*) AS pending_quizzes
-         FROM lesson_progress lp
-         JOIN lesson_quizzes lq ON lq.lesson_id = lp.lesson_id
-         LEFT JOIN lesson_quiz_attempts lqa ON lqa.quiz_id = lq.quiz_id AND lqa.user_id = ?
-         WHERE lp.user_id = ?
-         AND (lqa.attempt_id IS NULL OR lqa.passed = 0)",
-        "ii",
-        [$userId, $userId]
+         FROM quiz_attempts
+         WHERE user_id = ? AND status = 'ready'",
+        "i",
+        [$userId]
     );
 
     return (int)($row['pending_quizzes'] ?? 0);
@@ -424,29 +543,6 @@ function getCompletedLessons($conn, $userId) {
         "i",
         [$userId]
     );
-}
-
-function createLessonQuizIfMissing($conn, $lessonId) {
-    ensureLessonQuizTables($conn);
-
-    $existing = getLessonQuizByLesson($conn, $lessonId);
-    if ($existing) {
-        return $existing;
-    }
-
-    $lesson = dbFetchOne($conn, "SELECT title FROM module_lessons WHERE lesson_id = ?", "i", [$lessonId]);
-    if (!$lesson) {
-        return null;
-    }
-
-    dbExecute(
-        $conn,
-        "INSERT INTO lesson_quizzes (lesson_id, title, passing_score) VALUES (?, ?, 70)",
-        "is",
-        [$lessonId, 'Quiz for ' . $lesson['title']]
-    );
-
-    return getLessonQuizByLesson($conn, $lessonId);
 }
 
 function initializeStudentSubjects($conn, $userId, $pathId) {
@@ -712,6 +808,7 @@ function getRoadmapByYear($conn, $userId) {
 function getSubjectLearningData($conn, $userId, $subjectId) {
     ensureLessonProgressTable($conn);
     ensureModuleLessonsSchema($conn);
+    ensureQuizAttemptsTable($conn);
 
     $subject = dbFetchOne(
         $conn,
@@ -749,11 +846,19 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
         foreach ($lessons as $lessonIndex => $lesson) {
             $progress = dbFetchOne(
                 $conn,
-                "SELECT 1 AS completed FROM lesson_progress WHERE user_id = ? AND lesson_id = ?",
+                "SELECT 1 AS completed FROM lesson_progress WHERE user_id = ? AND lesson_id = ? AND status = 'completed'",
                 "ii",
                 [$userId, $lesson['lesson_id']]
             );
             $lessons[$lessonIndex]['completed'] = (bool)($progress['completed'] ?? false);
+            $quizAttempt = dbFetchOne(
+                $conn,
+                "SELECT * FROM quiz_attempts WHERE user_id = ? AND lesson_id = ?",
+                "ii",
+                [$userId, $lesson['lesson_id']]
+            );
+            $lessons[$lessonIndex]['quiz_status'] = $quizAttempt['status'] ?? null;
+            $lessons[$lessonIndex]['quiz_score'] = $quizAttempt['score'] ?? null;
         }
 
         $modules[$moduleIndex]['lessons'] = $lessons;
@@ -777,38 +882,31 @@ function getSubjectLearningData($conn, $userId, $subjectId) {
 
 function recalculateSubjectProgress($conn, $userId, $subjectId) {
     ensureLessonProgressTable($conn);
-    ensureLessonQuizTables($conn);
+    ensureQuizAttemptsTable($conn);
 
     $stats = dbFetchOne(
         $conn,
         "SELECT
-                COUNT(DISTINCT mt.task_id) AS total_tasks,
-                SUM(CASE WHEN ts.status = 'completed' THEN 1 ELSE 0 END) AS completed_tasks,
                 COUNT(DISTINCT ml.lesson_id) AS total_lessons,
-                SUM(CASE WHEN lp.lesson_progress_id IS NOT NULL THEN 1 ELSE 0 END) AS completed_lessons,
+                COUNT(DISTINCT CASE WHEN lp.progress_id IS NOT NULL THEN ml.lesson_id END) AS completed_lessons,
                 COUNT(DISTINCT ml.lesson_id) AS total_quizzes,
-                SUM(CASE WHEN lqa.passed = 1 THEN 1 ELSE 0 END) AS completed_quizzes
+                COUNT(DISTINCT CASE WHEN qa.status = 'completed' THEN ml.lesson_id END) AS completed_quizzes
          FROM subject_modules sm
-         LEFT JOIN module_tasks mt ON mt.module_id = sm.module_id
-         LEFT JOIN task_submissions ts ON ts.task_id = mt.task_id AND ts.user_id = ?
          LEFT JOIN module_lessons ml ON ml.module_id = sm.module_id
-         LEFT JOIN lesson_progress lp ON lp.lesson_id = ml.lesson_id AND lp.user_id = ?
-         LEFT JOIN lesson_quizzes lq ON lq.lesson_id = ml.lesson_id
-         LEFT JOIN lesson_quiz_attempts lqa ON lqa.quiz_id = lq.quiz_id AND lqa.user_id = ?
+         LEFT JOIN lesson_progress lp ON lp.lesson_id = ml.lesson_id AND lp.user_id = ? AND lp.status = 'completed'
+         LEFT JOIN quiz_attempts qa ON qa.lesson_id = ml.lesson_id AND qa.user_id = ?
          WHERE sm.subject_id = ?",
-        "iiii",
-        [$userId, $userId, $userId, $subjectId]
+        "iii",
+        [$userId, $userId, $subjectId]
     );
 
-    $totalTasks = (int)($stats['total_tasks'] ?? 0);
-    $completedTasks = (int)($stats['completed_tasks'] ?? 0);
     $totalLessons = (int)($stats['total_lessons'] ?? 0);
     $completedLessons = (int)($stats['completed_lessons'] ?? 0);
     $totalQuizzes = (int)($stats['total_quizzes'] ?? 0);
     $completedQuizzes = (int)($stats['completed_quizzes'] ?? 0);
 
-    $totalItems = $totalTasks + $totalLessons + $totalQuizzes;
-    $completedItems = $completedTasks + $completedLessons + $completedQuizzes;
+    $totalItems = $totalLessons + $totalQuizzes;
+    $completedItems = $completedLessons + $completedQuizzes;
     $progress = $totalItems > 0 ? (int)round(($completedItems / $totalItems) * 100) : 0;
 
     dbExecute(
@@ -843,6 +941,7 @@ function startSubject($conn, $userId, $subjectId) {
 function markLessonComplete($conn, $userId, $lessonId) {
     ensureLessonProgressTable($conn);
     ensureModuleLessonsSchema($conn);
+    ensureQuizAttemptsTable($conn);
 
     $lesson = dbFetchOne(
         $conn,
@@ -865,14 +964,27 @@ function markLessonComplete($conn, $userId, $lessonId) {
 
     dbExecute(
         $conn,
-        "INSERT INTO lesson_progress (lesson_id, user_id)
-         VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE lesson_id = lesson_id",
-        "ii",
-        [$lessonId, $userId]
+        "INSERT INTO lesson_progress (user_id, lesson_id, subject_id, status, completed_at)
+         VALUES (?, ?, ?, 'completed', NOW())
+         ON DUPLICATE KEY UPDATE
+            subject_id = VALUES(subject_id),
+            status = 'completed',
+            completed_at = NOW()",
+        "iii",
+        [$userId, $lessonId, (int)$lesson['subject_id']]
     );
 
-    createLessonQuizIfMissing($conn, $lessonId);
+    dbExecute(
+        $conn,
+        "INSERT INTO quiz_attempts (user_id, lesson_id, subject_id, status, created_at)
+         VALUES (?, ?, ?, 'ready', NOW())
+         ON DUPLICATE KEY UPDATE
+            subject_id = VALUES(subject_id),
+            status = IF(status = 'completed', status, 'ready')",
+        "iii",
+        [$userId, $lessonId, (int)$lesson['subject_id']]
+    );
+
     recalculateSubjectProgress($conn, $userId, (int)$lesson['subject_id']);
     return true;
 }
@@ -920,10 +1032,220 @@ function completeModuleTask($conn, $userId, $taskId) {
     return true;
 }
 
+function ensureMentorTables($conn) {
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS user_applications (
+            application_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            role ENUM('mentor','employer') NOT NULL,
+            organization_name VARCHAR(255) DEFAULT NULL,
+            application_note TEXT DEFAULT NULL,
+            status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (application_id),
+            UNIQUE KEY uq_user_applications_user (user_id),
+            CONSTRAINT fk_user_applications_user_mentor_flow FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_profiles (
+            mentor_profile_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            age INT(11) DEFAULT NULL,
+            degree VARCHAR(180) DEFAULT NULL,
+            specialization VARCHAR(180) DEFAULT NULL,
+            years_experience INT(11) DEFAULT 0,
+            industry VARCHAR(180) DEFAULT NULL,
+            resume_upload VARCHAR(255) DEFAULT NULL,
+            certifications TEXT DEFAULT NULL,
+            bio TEXT DEFAULT NULL,
+            linkedin_url VARCHAR(255) DEFAULT NULL,
+            github_url VARCHAR(255) DEFAULT NULL,
+            behance_url VARCHAR(255) DEFAULT NULL,
+            portfolio_url VARCHAR(255) DEFAULT NULL,
+            experience TEXT DEFAULT NULL,
+            verification_status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (mentor_profile_id),
+            UNIQUE KEY uq_mentor_profiles_user (user_id),
+            CONSTRAINT fk_mentor_profiles_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    ensureColumn($conn, 'mentor_profiles', 'age', "INT(11) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'degree', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'specialization', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'industry', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'resume_upload', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'certifications', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'bio', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'linkedin_url', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'github_url', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'behance_url', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'portfolio_url', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'experience', "TEXT DEFAULT NULL");
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_certifications (
+            certification_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            title VARCHAR(180) NOT NULL,
+            file_path VARCHAR(255) NOT NULL,
+            uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (certification_id),
+            KEY idx_mentor_certifications_user (user_id),
+            CONSTRAINT fk_mentor_certifications_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS employer_profiles (
+            employer_profile_id INT(11) NOT NULL AUTO_INCREMENT,
+            user_id INT(11) NOT NULL,
+            company_name VARCHAR(180) NOT NULL,
+            business_email VARCHAR(180) DEFAULT NULL,
+            industry VARCHAR(120) DEFAULT NULL,
+            company_size VARCHAR(80) DEFAULT NULL,
+            website VARCHAR(255) DEFAULT NULL,
+            business_registration_number VARCHAR(120) DEFAULT NULL,
+            business_permit_upload VARCHAR(255) DEFAULT NULL,
+            company_profile_pdf VARCHAR(255) DEFAULT NULL,
+            contact_person VARCHAR(180) DEFAULT NULL,
+            contact_position VARCHAR(120) DEFAULT NULL,
+            contact_number VARCHAR(80) DEFAULT NULL,
+            office_address TEXT DEFAULT NULL,
+            verification_status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (employer_profile_id),
+            UNIQUE KEY uq_employer_profiles_user (user_id),
+            CONSTRAINT fk_employer_profiles_user_phase2 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    ensureColumn($conn, 'employer_profiles', 'business_email', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'website', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'business_registration_number', "VARCHAR(120) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'business_permit_upload', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'company_profile_pdf', "VARCHAR(255) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'contact_person', "VARCHAR(180) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'contact_position', "VARCHAR(120) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'contact_number', "VARCHAR(80) DEFAULT NULL");
+    ensureColumn($conn, 'employer_profiles', 'office_address', "TEXT DEFAULT NULL");
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_career_assignments (
+            assignment_id INT(11) NOT NULL AUTO_INCREMENT,
+            mentor_id INT(11) NOT NULL,
+            career_path_id INT(11) NOT NULL,
+            assigned_by_admin INT(11) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (assignment_id),
+            UNIQUE KEY uq_mentor_career_assignment (mentor_id, career_path_id),
+            CONSTRAINT fk_mentor_career_assignments_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_career_assignments_path FOREIGN KEY (career_path_id) REFERENCES career_paths(path_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_career_assignments_admin FOREIGN KEY (assigned_by_admin) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_student_requests (
+            request_id INT(11) NOT NULL AUTO_INCREMENT,
+            student_id INT(11) NOT NULL,
+            mentor_id INT(11) NOT NULL,
+            status ENUM('pending','accepted','rejected') NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (request_id),
+            UNIQUE KEY uq_mentor_student_request (student_id, mentor_id),
+            CONSTRAINT fk_mentor_student_requests_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_student_requests_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_enrollment_requests (
+            request_id INT(11) NOT NULL AUTO_INCREMENT,
+            mentor_id INT(11) NOT NULL,
+            student_id INT(11) NOT NULL,
+            subject_id INT(11) NOT NULL,
+            status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (request_id),
+            UNIQUE KEY uq_mentor_request (mentor_id, student_id, subject_id),
+            CONSTRAINT fk_mentor_requests_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_requests_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_requests_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_students (
+            mentor_student_id INT(11) NOT NULL AUTO_INCREMENT,
+            mentor_id INT(11) NOT NULL,
+            student_id INT(11) NOT NULL,
+            subject_id INT(11) NOT NULL,
+            status ENUM('active','completed','removed') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (mentor_student_id),
+            UNIQUE KEY uq_mentor_student_subject (mentor_id, student_id, subject_id),
+            CONSTRAINT fk_mentor_students_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_students_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_students_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_tasks (
+            mentor_task_id INT(11) NOT NULL AUTO_INCREMENT,
+            mentor_id INT(11) NOT NULL,
+            path_id INT(11) NOT NULL,
+            subject_id INT(11) NOT NULL,
+            lesson_id INT(11) NOT NULL,
+            title VARCHAR(180) NOT NULL,
+            instructions TEXT NOT NULL,
+            resources TEXT DEFAULT NULL,
+            deadline DATE DEFAULT NULL,
+            points INT(11) NOT NULL DEFAULT 100,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (mentor_task_id),
+            CONSTRAINT fk_mentor_tasks_mentor FOREIGN KEY (mentor_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_tasks_path FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_tasks_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_tasks_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS mentor_task_submissions (
+            submission_id INT(11) NOT NULL AUTO_INCREMENT,
+            mentor_task_id INT(11) NOT NULL,
+            student_id INT(11) NOT NULL,
+            submission_file VARCHAR(255) DEFAULT NULL,
+            submission_link VARCHAR(255) DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
+            comment TEXT DEFAULT NULL,
+            score INT(11) DEFAULT NULL,
+            status ENUM('submitted','approved','revision_requested') NOT NULL DEFAULT 'submitted',
+            submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (submission_id),
+            UNIQUE KEY uq_mentor_task_submission (mentor_task_id, student_id),
+            CONSTRAINT fk_mentor_task_submissions_task FOREIGN KEY (mentor_task_id) REFERENCES mentor_tasks(mentor_task_id) ON DELETE CASCADE,
+            CONSTRAINT fk_mentor_task_submissions_student FOREIGN KEY (student_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    return true;
+}
+
 function getFeaturedMentor($conn, $userId) {
+    ensureMentorTables($conn);
     return dbFetchOne(
         $conn,
-        "SELECT ma.*, u.full_name, u.email, u.profile_photo
+        "SELECT ma.assignment_id, ma.student_id, ma.mentor_id, ma.status, ma.assigned_at,
+                u.full_name, u.email, u.profile_photo
          FROM mentor_assignments ma
          JOIN users u ON u.user_id = ma.mentor_id
          WHERE ma.student_id = ?
@@ -936,6 +1258,7 @@ function getFeaturedMentor($conn, $userId) {
 }
 
 function getMentorModuleData($conn, $userId) {
+    ensureMentorTables($conn);
     $mentor = getFeaturedMentor($conn, $userId);
 
     if (!$mentor) {
@@ -990,6 +1313,304 @@ function sendMentorQuestion($conn, $userId, $message) {
          VALUES (?, ?, ?)",
         "iis",
         [$mentor['assignment_id'], $userId, $message]
+    );
+}
+
+function getApprovedMentors($conn) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization, mp.years_experience, mp.industry, mp.bio
+         FROM users u
+         LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
+         WHERE u.role = 'mentor' AND u.status = 'approved'
+         ORDER BY u.full_name"
+    );
+}
+
+function getMentorCareerAssignments($conn, $mentorId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT mca.*, cp.title, cp.icon
+         FROM mentor_career_assignments mca
+         JOIN career_paths cp ON cp.path_id = mca.career_path_id
+         WHERE mca.mentor_id = ?
+         ORDER BY cp.title",
+        "i",
+        [$mentorId]
+    );
+}
+
+function mentorCanServeCareer($conn, $mentorId, $careerPathId) {
+    ensureMentorTables($conn);
+    $row = dbFetchOne(
+        $conn,
+        "SELECT assignment_id FROM mentor_career_assignments WHERE mentor_id = ? AND career_path_id = ?",
+        "ii",
+        [$mentorId, $careerPathId]
+    );
+    return $row !== null;
+}
+
+function getMentorsForStudentCareer($conn, $studentId) {
+    ensureMentorTables($conn);
+    $careerPathId = getStudentCareerPathId($conn, $studentId);
+
+    if ($careerPathId === 0) {
+        return [];
+    }
+
+    $mentors = dbFetchAll(
+        $conn,
+        "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
+                mp.degree, mp.specialization, mp.years_experience, mp.bio,
+                GROUP_CONCAT(cp.title ORDER BY cp.title SEPARATOR ', ') AS assigned_careers,
+                msr.status AS request_status
+         FROM mentor_career_assignments mca
+         JOIN users u ON u.user_id = mca.mentor_id AND u.role = 'mentor' AND u.status = 'approved'
+         LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
+         JOIN career_paths cp ON cp.path_id = mca.career_path_id
+         LEFT JOIN mentor_student_requests msr ON msr.mentor_id = u.user_id AND msr.student_id = ?
+         WHERE mca.career_path_id = ?
+         GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization, mp.years_experience, mp.bio, msr.status
+         ORDER BY u.full_name",
+        "ii",
+        [$studentId, $careerPathId]
+    );
+
+    return $mentors;
+}
+
+function requestMentorEnrollment($conn, $studentId, $mentorId, $subjectId = 0) {
+    ensureMentorTables($conn);
+
+    if (!hasPremiumAccess($conn, $studentId)) {
+        return false;
+    }
+
+    $careerPathId = getStudentCareerPathId($conn, $studentId);
+    $mentor = dbFetchOne($conn, "SELECT user_id FROM users WHERE user_id = ? AND role = 'mentor' AND status = 'approved'", "i", [$mentorId]);
+
+    if (!$mentor || $careerPathId === 0 || !mentorCanServeCareer($conn, $mentorId, $careerPathId)) {
+        return false;
+    }
+
+    dbExecute(
+        $conn,
+        "INSERT INTO mentor_student_requests (student_id, mentor_id, status)
+         VALUES (?, ?, 'pending')
+         ON DUPLICATE KEY UPDATE status = IF(status = 'rejected', 'pending', status), created_at = NOW()",
+        "ii",
+        [$studentId, $mentorId]
+    );
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO mentor_enrollment_requests (mentor_id, student_id, subject_id, status)
+         VALUES (?, ?, ?, 'pending')
+         ON DUPLICATE KEY UPDATE status = IF(status = 'rejected', 'pending', status), requested_at = NOW()",
+        "iii",
+        [$mentorId, $studentId, $subjectId ?: getCurrentAcademicPosition(getStudentSubjectRows($conn, $studentId))['subject_id']]
+    );
+}
+
+function getStudentMentorRequests($conn, $studentId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT mer.*, u.full_name AS mentor_name, cs.subject_title
+         FROM mentor_enrollment_requests mer
+         JOIN users u ON u.user_id = mer.mentor_id
+         JOIN career_subjects cs ON cs.subject_id = mer.subject_id
+         WHERE mer.student_id = ?
+         ORDER BY mer.requested_at DESC",
+        "i",
+        [$studentId]
+    );
+}
+
+function getMentorIncomingRequests($conn, $mentorId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT msr.*, u.full_name, u.email, sp.career_path, sp.career_path_id
+         FROM mentor_student_requests msr
+         JOIN users u ON u.user_id = msr.student_id
+         LEFT JOIN student_profiles sp ON sp.user_id = msr.student_id
+         WHERE msr.mentor_id = ?
+         ORDER BY msr.created_at DESC",
+        "i",
+        [$mentorId]
+    );
+}
+
+function respondMentorStudentRequest($conn, $mentorId, $requestId, $status) {
+    ensureMentorTables($conn);
+
+    if (!in_array($status, ['accepted', 'rejected'], true)) {
+        return false;
+    }
+
+    $request = dbFetchOne(
+        $conn,
+        "SELECT msr.*, sp.career_path_id
+         FROM mentor_student_requests msr
+         LEFT JOIN student_profiles sp ON sp.user_id = msr.student_id
+         WHERE msr.request_id = ? AND msr.mentor_id = ? AND msr.status = 'pending'",
+        "ii",
+        [$requestId, $mentorId]
+    );
+
+    if (!$request) {
+        return false;
+    }
+
+    if ((int)($request['career_path_id'] ?? 0) > 0 && !mentorCanServeCareer($conn, $mentorId, (int)$request['career_path_id'])) {
+        return false;
+    }
+
+    dbExecute($conn, "UPDATE mentor_student_requests SET status = ?, reviewed_at = NOW() WHERE request_id = ?", "si", [$status, $requestId]);
+
+    if ($status === 'accepted') {
+        $subjects = getStudentSubjectRows($conn, (int)$request['student_id']);
+        $current = getCurrentAcademicPosition($subjects);
+        $subjectId = (int)$current['subject_id'];
+
+        dbExecute(
+            $conn,
+            "INSERT INTO mentor_students (mentor_id, student_id, subject_id, status)
+             VALUES (?, ?, ?, 'active')
+             ON DUPLICATE KEY UPDATE status = 'active'",
+            "iii",
+            [$mentorId, (int)$request['student_id'], $subjectId]
+        );
+        dbExecute(
+            $conn,
+            "INSERT INTO mentor_assignments (student_id, mentor_id, status)
+             VALUES (?, ?, 'active')
+             ON DUPLICATE KEY UPDATE status = 'active'",
+            "ii",
+            [(int)$request['student_id'], $mentorId]
+        );
+    }
+
+    return true;
+}
+
+function assignMentorCareers($conn, $mentorId, $careerPathIds, $adminId) {
+    ensureMentorTables($conn);
+    dbExecute($conn, "DELETE FROM mentor_career_assignments WHERE mentor_id = ?", "i", [$mentorId]);
+
+    foreach ($careerPathIds as $pathId) {
+        $pathId = (int)$pathId;
+        if ($pathId > 0) {
+            dbExecute(
+                $conn,
+                "INSERT INTO mentor_career_assignments (mentor_id, career_path_id, assigned_by_admin)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE assigned_by_admin = VALUES(assigned_by_admin)",
+                "iii",
+                [$mentorId, $pathId, $adminId]
+            );
+        }
+    }
+
+    return true;
+}
+
+function setApplicantStatus($conn, $userId, $status, $adminId, $careerPathIds = []) {
+    ensureMentorTables($conn);
+
+    if (!in_array($status, ['approved', 'rejected'], true)) {
+        return false;
+    }
+
+    $user = dbFetchOne($conn, "SELECT user_id, role, email, full_name FROM users WHERE user_id = ? AND role IN ('mentor','employer')", "i", [$userId]);
+
+    if (!$user) {
+        return false;
+    }
+
+    if ($status === 'approved' && $user['role'] === 'mentor' && count($careerPathIds) === 0) {
+        return false;
+    }
+
+    dbExecute($conn, "UPDATE users SET status = ? WHERE user_id = ?", "si", [$status, $userId]);
+    dbExecute($conn, "UPDATE user_applications SET status = ? WHERE user_id = ?", "si", [$status, $userId]);
+
+    if ($user['role'] === 'mentor') {
+        dbExecute($conn, "UPDATE mentor_profiles SET verification_status = ? WHERE user_id = ?", "si", [$status, $userId]);
+        if ($status === 'approved') {
+            assignMentorCareers($conn, $userId, $careerPathIds, $adminId);
+        }
+    } elseif ($user['role'] === 'employer') {
+        dbExecute($conn, "UPDATE employer_profiles SET verification_status = ? WHERE user_id = ?", "si", [$status, $userId]);
+    }
+
+    logEmail(
+        $conn,
+        $user['email'],
+        "Map My Future application " . $status,
+        "Hi {$user['full_name']}, your {$user['role']} application has been {$status}."
+    );
+
+    return true;
+}
+
+function getAvailableMentorTasksForStudent($conn, $studentId) {
+    ensureMentorTables($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT mt.*, u.full_name AS mentor_name, cs.subject_title, ml.title AS lesson_title,
+                mts.submission_id, mts.status AS submission_status, mts.score, mts.comment
+         FROM mentor_tasks mt
+         JOIN mentor_students ms ON ms.mentor_id = mt.mentor_id AND ms.subject_id = mt.subject_id AND ms.student_id = ? AND ms.status = 'active'
+         JOIN users u ON u.user_id = mt.mentor_id
+         JOIN career_subjects cs ON cs.subject_id = mt.subject_id
+         JOIN module_lessons ml ON ml.lesson_id = mt.lesson_id
+         LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ?
+         ORDER BY mt.created_at DESC",
+        "ii",
+        [$studentId, $studentId]
+    );
+}
+
+function saveMentorTaskSubmission($conn, $studentId, $taskId, $filePath, $link, $notes) {
+    ensureMentorTables($conn);
+
+    $task = dbFetchOne(
+        $conn,
+        "SELECT mt.mentor_task_id
+         FROM mentor_tasks mt
+         JOIN mentor_students ms ON ms.mentor_id = mt.mentor_id AND ms.subject_id = mt.subject_id AND ms.student_id = ? AND ms.status = 'active'
+         WHERE mt.mentor_task_id = ?",
+        "ii",
+        [$studentId, $taskId]
+    );
+
+    if (!$task) {
+        return false;
+    }
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO mentor_task_submissions (mentor_task_id, student_id, submission_file, submission_link, notes, status, submitted_at)
+         VALUES (?, ?, ?, ?, ?, 'submitted', NOW())
+         ON DUPLICATE KEY UPDATE
+            submission_file = VALUES(submission_file),
+            submission_link = VALUES(submission_link),
+            notes = VALUES(notes),
+            status = 'submitted',
+            submitted_at = NOW(),
+            reviewed_at = NULL",
+        "iisss",
+        [$taskId, $studentId, $filePath, $link, $notes]
     );
 }
 
@@ -1235,77 +1856,84 @@ function saveAssessmentAttempt($conn, $userId, $assessmentId, $score) {
     return $passed === 1;
 }
 
-?>
-// === LESSON QUIZ ATTEMPT HELPERS ===
-function ensureLessonQuizTables($conn) {
-    $conn->query("CREATE TABLE IF NOT EXISTS lesson_quizzes (
-        quiz_id INT(11) NOT NULL AUTO_INCREMENT,
-        lesson_id INT(11) NOT NULL,
-        title VARCHAR(180) NOT NULL,
-        passing_score INT(11) NOT NULL DEFAULT 70,
-        PRIMARY KEY (quiz_id),
-        KEY idx_lesson_quizzes_lesson (lesson_id),
-        CONSTRAINT fk_lesson_quizzes_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    $conn->query("CREATE TABLE IF NOT EXISTS lesson_quiz_attempts (
-        attempt_id INT(11) NOT NULL AUTO_INCREMENT,
-        user_id INT(11) NOT NULL,
-        quiz_id INT(11) NOT NULL,
-        score INT(11) NOT NULL DEFAULT 0,
-        passed TINYINT(1) NOT NULL DEFAULT 0,
-        attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (attempt_id),
-        UNIQUE KEY uq_lesson_quiz_attempt_user_quiz (user_id, quiz_id),
-        CONSTRAINT fk_lesson_quiz_attempts_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-        CONSTRAINT fk_lesson_quiz_attempts_quiz FOREIGN KEY (quiz_id) REFERENCES lesson_quizzes(quiz_id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+function getReadyQuizAttempts($conn, $userId) {
+    ensureQuizAttemptsTable($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT qa.*, ml.title AS lesson_title, cs.subject_title, cs.subject_code
+         FROM quiz_attempts qa
+         JOIN module_lessons ml ON ml.lesson_id = qa.lesson_id
+         JOIN career_subjects cs ON cs.subject_id = qa.subject_id
+         WHERE qa.user_id = ? AND qa.status = 'ready'
+         ORDER BY qa.created_at DESC",
+        "i",
+        [$userId]
+    );
 }
 
-function getLessonQuizByLesson($conn, $lessonId) {
-    ensureLessonQuizTables($conn);
-    return dbFetchOne($conn, "SELECT * FROM lesson_quizzes WHERE lesson_id = ?", "i", [$lessonId]);
+function getCompletedQuizAttempts($conn, $userId, $limit = 12) {
+    ensureQuizAttemptsTable($conn);
+
+    return dbFetchAll(
+        $conn,
+        "SELECT qa.*, ml.title AS lesson_title, cs.subject_title, cs.subject_code
+         FROM quiz_attempts qa
+         JOIN module_lessons ml ON ml.lesson_id = qa.lesson_id
+         JOIN career_subjects cs ON cs.subject_id = qa.subject_id
+         WHERE qa.user_id = ? AND qa.status = 'completed'
+         ORDER BY qa.completed_at DESC
+         LIMIT ?",
+        "ii",
+        [$userId, $limit]
+    );
 }
 
-function getLessonQuizAttempt($conn, $userId, $quizId) {
-    ensureLessonQuizTables($conn);
-    return dbFetchOne($conn, "SELECT * FROM lesson_quiz_attempts WHERE user_id = ? AND quiz_id = ?", "ii", [$userId, $quizId]);
-}
+function completeReadyQuizAttempt($conn, $userId, $attemptId) {
+    ensureQuizAttemptsTable($conn);
+    $attempt = dbFetchOne($conn, "SELECT * FROM quiz_attempts WHERE attempt_id = ? AND user_id = ? AND status = 'ready'", "ii", [$attemptId, $userId]);
 
-function createLessonQuizAttempt($conn, $userId, $quizId, $score = null) {
-    ensureLessonQuizTables($conn);
-    if ($score === null) {
-        $score = rand(70, 100);
+    if (!$attempt) {
+        return null;
     }
-    $quiz = dbFetchOne($conn, "SELECT * FROM lesson_quizzes WHERE quiz_id = ?", "i", [$quizId]);
-    if (!$quiz) return false;
-    $passed = $score >= (int)$quiz['passing_score'] ? 1 : 0;
+
+    $score = rand(70, 100);
     dbExecute(
         $conn,
-        "INSERT INTO lesson_quiz_attempts (user_id, quiz_id, score, passed) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = VALUES(score), passed = VALUES(passed), attempted_at = CURRENT_TIMESTAMP",
-        "iiii",
-        [$userId, $quizId, $score, $passed]
+        "UPDATE quiz_attempts
+         SET score = ?, status = 'completed', completed_at = NOW()
+         WHERE attempt_id = ? AND user_id = ?",
+        "iii",
+        [$score, $attemptId, $userId]
     );
-    return [ 'score' => $score, 'passed' => $passed ];
+    recalculateSubjectProgress($conn, $userId, (int)$attempt['subject_id']);
+
+    return [
+        'lesson_id' => (int)$attempt['lesson_id'],
+        'subject_id' => (int)$attempt['subject_id'],
+        'score' => $score
+    ];
 }
 
 function hasCompletedLessonQuiz($conn, $userId, $lessonId) {
-    $quiz = getLessonQuizByLesson($conn, $lessonId);
-    if (!$quiz) return false;
-    $attempt = getLessonQuizAttempt($conn, $userId, $quiz['quiz_id']);
-    return $attempt && $attempt['passed'] == 1;
+    ensureQuizAttemptsTable($conn);
+    $attempt = dbFetchOne($conn, "SELECT status FROM quiz_attempts WHERE user_id = ? AND lesson_id = ?", "ii", [$userId, $lessonId]);
+    return $attempt && $attempt['status'] === 'completed';
 }
 
 function getLessonQuizStatus($conn, $userId, $lessonId) {
-    $quiz = getLessonQuizByLesson($conn, $lessonId);
-    if (!$quiz) return [ 'available' => false ];
-    $attempt = getLessonQuizAttempt($conn, $userId, $quiz['quiz_id']);
-    if ($attempt) {
-        return [
-            'available' => true,
-            'completed' => $attempt['passed'] == 1,
-            'score' => $attempt['score'],
-            'attempted_at' => $attempt['attempted_at']
-        ];
+    ensureQuizAttemptsTable($conn);
+    $attempt = dbFetchOne($conn, "SELECT * FROM quiz_attempts WHERE user_id = ? AND lesson_id = ?", "ii", [$userId, $lessonId]);
+
+    if (!$attempt) {
+        return ['available' => false];
     }
-    return [ 'available' => true, 'completed' => false ];
+
+    return [
+        'available' => true,
+        'completed' => $attempt['status'] === 'completed',
+        'score' => $attempt['score'],
+        'attempted_at' => $attempt['completed_at'] ?? $attempt['created_at']
+    ];
 }
+?>

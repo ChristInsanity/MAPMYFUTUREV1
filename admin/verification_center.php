@@ -3,561 +3,201 @@ require_once '../auth_guard.php';
 require_once '../includes/student_functions.php';
 
 requireAdmin();
+ensureMentorTables($conn);
 
+$applicants = dbFetchAll(
+    $conn,
+    "SELECT user_id, full_name, email, role, status
+     FROM users
+     WHERE role IN ('mentor','employer')
+     ORDER BY created_at DESC"
+);
+$pendingTotal = count(array_filter($applicants, fn($row) => $row['status'] === 'pending'));
 
-/*
-|--------------------------------------------------------------------------
-| LIVE COUNTS
-|--------------------------------------------------------------------------
-*/
-
-$pendingTotal = $conn->query("
-SELECT COUNT(*) total
-FROM users
-WHERE role IN('mentor','employer')
-AND status='pending'
-")->fetch_assoc()['total'] ?? 0;
-
-
-$approvedTotal = $conn->query("
-SELECT COUNT(*) total
-FROM users
-WHERE role IN('mentor','employer')
-AND status='approved'
-")->fetch_assoc()['total'] ?? 0;
-
-
-$rejectedTotal = $conn->query("
-SELECT COUNT(*) total
-FROM users
-WHERE role IN('mentor','employer')
-AND status='rejected'
-")->fetch_assoc()['total'] ?? 0;
-
-
-
-/*
-|--------------------------------------------------------------------------
-| APPROVE / REJECT
-|--------------------------------------------------------------------------
-*/
-
-if(isset($_GET['approve'])){
-
-    $id=(int)$_GET['approve'];
-
-    $stmt=$conn->prepare("
-    UPDATE users
-    SET status='approved'
-    WHERE user_id=?
-    ");
-
-    $stmt->bind_param("i",$id);
-    $stmt->execute();
-
-    dbExecute($conn, "UPDATE user_applications SET status='approved' WHERE user_id = ?", "i", [$id]);
-    $user = $conn->query("SELECT email, full_name, role FROM users WHERE user_id = $id")->fetch_assoc();
-    if ($user) {
-        logEmail($conn, $user['email'], "Map My Future application approved", "Hi {$user['full_name']}, your {$user['role']} application has been approved. You can now sign in and continue.");
-    }
-
-    redirect("verification_center.php");
-}
-
-
-if(isset($_GET['reject'])){
-
-    $id=(int)$_GET['reject'];
-
-    $stmt=$conn->prepare("
-    UPDATE users
-    SET status='rejected'
-    WHERE user_id=?
-    ");
-
-    $stmt->bind_param("i",$id);
-    $stmt->execute();
-
-    dbExecute($conn, "UPDATE user_applications SET status='rejected' WHERE user_id = ?", "i", [$id]);
-    $user = $conn->query("SELECT email, full_name FROM users WHERE user_id = $id")->fetch_assoc();
-    if ($user) {
-        logEmail($conn, $user['email'], "Map My Future application rejected", "Hi {$user['full_name']}, your mentor/employer application was not approved at this time. Please review the application requirements and try again.");
-    }
-
-    redirect("verification_center.php");
-}
-
-
-
-
-/*
-|--------------------------------------------------------------------------
-| FETCH PENDING
-|--------------------------------------------------------------------------
-*/
-
-$applicants = $conn->query("
-SELECT u.*, ua.organization_name, ua.application_note
-FROM users u
-LEFT JOIN user_applications ua ON ua.user_id = u.user_id
-WHERE u.role IN('mentor','employer')
-ORDER BY u.created_at DESC
-");
+$pageTitle = 'Verification Center';
+$activePage = 'verification';
+include '../header.php';
 ?>
-
-<!DOCTYPE html>
-<html>
-<head>
-
-<title>Verification Center</title>
-
-<script src="https://cdn.tailwindcss.com"></script>
-
-<link
-rel="stylesheet"
-href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-/>
-
-</head>
-
-<body class="bg-[#020B24] text-white">
-
-
-<!-- NAV -->
-
-<nav class="border-b border-slate-800 sticky top-0 bg-[#020B24]/95 backdrop-blur z-50">
-
-<div class="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex justify-between items-center">
-
-
-<div class="flex gap-10 items-center">
-
-
-<div class="text-xl font-bold text-blue-400 flex gap-3 items-center">
-
-<i class="fa-solid fa-shield-halved"></i>
-
-Admin Center
-
-</div>
-
-
-<div class="hidden xl:flex gap-6 text-sm">
-
-
-<a href="dashboard.php" class="navBtn">
-<i class="fa-solid fa-chart-line"></i>
-Dashboard
-</a>
-
-
-<a href="#" class="navActive">
-<i class="fa-solid fa-user-check"></i>
-Verification
-</a>
-
-
-<a href="analytics.php" class="navBtn">
-<i class="fa-solid fa-chart-pie"></i>
-Analytics
-</a>
-
-<a href="lesson_manager.php" class="navBtn">
-<i class="fa-solid fa-book-open"></i>
-Lessons
-</a>
-
-
-</div>
-
-
-</div>
-
-
-
-<a
-href="../logout.php"
-class="bg-red-600 px-5 py-2 rounded-xl flex gap-2 items-center"
->
-<i class="fa-solid fa-right-from-bracket"></i>
-Logout
-</a>
-
-
-</div>
-
-</nav>
-
-
-
-
-
-
-<div class="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-
-
-<!-- HEADER -->
 
 <div class="mb-8">
-
-<h1 class="text-4xl font-bold mb-2">
-
-Verification Center
-
-</h1>
-
-<p class="text-slate-400">
-
-Approve mentor and employer accounts
-
-</p>
-
+    <p class="text-blue-300 font-semibold mb-2">Admin review</p>
+    <h1 class="text-3xl lg:text-4xl font-bold mb-2">Verification Center</h1>
+    <p class="text-slate-400">Review mentor and employer applications, assign mentor tracks, then approve or reject.</p>
 </div>
 
-
-
-
-
-
-<!-- STATS -->
-
-<div class="grid sm:grid-cols-3 gap-4 mb-8">
-
-
-<div class="statCard">
-
-<div class="flex justify-between mb-3">
-
-<p>Pending</p>
-
-<i class="fa-solid fa-clock text-yellow-400"></i>
-
-</div>
-
-<h2><?= $pendingTotal ?></h2>
-
-</div>
-
-
-
-
-<div class="statCard">
-
-<div class="flex justify-between mb-3">
-
-<p>Approved</p>
-
-<i class="fa-solid fa-circle-check text-green-400"></i>
-
-</div>
-
-<h2><?= $approvedTotal ?></h2>
-
-</div>
-
-
-
-
-<div class="statCard">
-
-<div class="flex justify-between mb-3">
-
-<p>Rejected</p>
-
-<i class="fa-solid fa-circle-xmark text-red-400"></i>
-
-</div>
-
-<h2><?= $rejectedTotal ?></h2>
-
-</div>
-
-
-</div>
-
-
-
-
-
-
-
-<!-- APPLICANTS -->
+<div id="adminMessage" class="hidden mb-6 rounded-2xl border p-4"></div>
 
 <div class="card">
-
     <div class="flex justify-between items-center mb-6">
-
-        <h2 class="sectionTitle">
-            Account Requests
-        </h2>
-
-        <span class="text-slate-400 text-sm">
-            <?= $pendingTotal ?> Pending
-        </span>
-
+        <h2 class="sectionTitle">Applicants</h2>
+        <span class="text-slate-400 text-sm"><?= (int)$pendingTotal ?> pending</span>
     </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead class="text-slate-400 text-sm border-b border-[#334155]">
+                <tr>
+                    <th class="py-3 pr-4">Full Name</th>
+                    <th class="py-3 pr-4">Email</th>
+                    <th class="py-3 pr-4">Role</th>
+                    <th class="py-3 pr-4">Status</th>
+                    <th class="py-3 pr-4 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($applicants as $applicant): ?>
+                    <tr class="applicantRow border-b border-[#334155]/60" data-user-id="<?= (int)$applicant['user_id'] ?>" data-role="<?= e($applicant['role']) ?>">
+                        <td class="py-4 pr-4 font-semibold"><?= e($applicant['full_name']) ?></td>
+                        <td class="py-4 pr-4 text-slate-300"><?= e($applicant['email']) ?></td>
+                        <td class="py-4 pr-4"><?= e(ucfirst($applicant['role'])) ?></td>
+                        <td class="py-4 pr-4"><span class="statusBadge badge <?= e(statusClass($applicant['status'] === 'approved' ? 'completed' : ($applicant['status'] === 'rejected' ? 'locked' : 'submitted'))) ?>"><?= e(readableStatus($applicant['status'])) ?></span></td>
+                        <td class="py-4 pr-4">
+                            <div class="flex justify-end gap-2">
+                                <button type="button" class="secondaryBtn reviewBtn">Review</button>
+                                <?php if ($applicant['status'] === 'pending'): ?>
+                                    <button type="button" class="primaryBtn quickApproveBtn">Approve</button>
+                                    <button type="button" class="dangerBtn quickRejectBtn">Reject</button>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                <?php if (count($applicants) === 0): ?>
+                    <tr><td colspan="5" class="py-8 text-slate-400">No applications yet.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
 
-
-    <div class="space-y-3">
-
-        <?php while($row=$applicants->fetch_assoc()): ?>
-
-        <div class="applicantRow">
-
-
-            <!-- LEFT -->
-            <div class="flex items-center gap-4 min-w-0 flex-1">
-
-
-                <!-- Avatar -->
-                <div class="avatarCircle">
-
-                    <?= strtoupper(substr($row['full_name'],0,1)) ?>
-
-                </div>
-
-
-
-                <!-- Details -->
-                <div class="min-w-0">
-
-                    <h3 class="font-semibold truncate">
-
-                        <?= e($row['full_name']) ?>
-
-                    </h3>
-
-
-                    <p class="text-slate-400 text-sm truncate">
-
-                        <?= e($row['email']) ?>
-
-                    </p>
-
-                    <?php if (!empty($row['organization_name'])): ?>
-                        <p class="text-slate-400 text-sm truncate">
-                            <?= e($row['organization_name']) ?>
-                        </p>
-                    <?php endif; ?>
-
-                    <?php if (!empty($row['application_note'])): ?>
-                        <p class="text-slate-400 text-sm mt-1">
-                            <?= e($row['application_note']) ?>
-                        </p>
-                    <?php endif; ?>
-
-                </div>
-
-
+<div id="reviewModal" class="hidden fixed inset-0 z-50 bg-black/70 px-4 py-8 overflow-y-auto">
+    <div class="max-w-3xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
+        <div class="flex justify-between gap-4 mb-5">
+            <div>
+                <h2 id="reviewName" class="text-2xl font-bold"></h2>
+                <p id="reviewEmail" class="text-slate-400"></p>
             </div>
-
-
-
-
-
-            <!-- BADGES -->
-            <div class="hidden md:flex gap-2">
-
-                <span class="badge">
-
-                    <?= ucfirst($row['role']) ?>
-
-                </span>
-
-
-                <span class="<?= badgeClass($row['status']) ?>">
-
-                    <?= ucfirst($row['status']) ?>
-
-                </span>
-
-            </div>
-
-
-
-
-
-
-            <!-- ACTIONS -->
-            <?php if($row['status']=="pending"): ?>
-
-            <div class="flex gap-2 ml-auto">
-
-
-                <a
-                href="?approve=<?= $row['user_id'] ?>"
-                class="iconApprove"
-                title="Approve"
-                >
-                    <i class="fa-solid fa-check"></i>
-                </a>
-
-
-
-                <a
-                href="?reject=<?= $row['user_id'] ?>"
-                class="iconReject"
-                title="Reject"
-                >
-                    <i class="fa-solid fa-xmark"></i>
-                </a>
-
-
-            </div>
-
-            <?php endif; ?>
-
-
+            <button type="button" onclick="closeReviewModal()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
-
-        <?php endwhile; ?>
-
+        <div id="reviewBody" class="space-y-4 text-slate-300"></div>
+        <div id="careerAssignmentPanel" class="hidden mt-5 bg-[#020B24] border border-[#334155] rounded-xl p-4">
+            <h3 class="font-bold mb-3">Assign Mentorship Tracks</h3>
+            <div id="careerCheckboxes" class="grid sm:grid-cols-2 gap-3"></div>
+            <p class="text-slate-500 text-sm mt-3">Mentors can only appear in search, accept enrollments, and create tasks for assigned careers.</p>
+        </div>
+        <div class="flex flex-wrap gap-3 mt-6">
+            <button type="button" id="modalApproveBtn" class="primaryBtn">Approve</button>
+            <button type="button" id="modalRejectBtn" class="dangerBtn">Reject</button>
+            <a id="modalEmailBtn" class="secondaryBtn" href="mailto:">Write Email</a>
+        </div>
     </div>
-
 </div>
 
+<script>
+let currentApplicantId = null;
+let currentApplicantRole = null;
 
-</div>
-
-
-
-<style>
-
-.navBtn,
-.navActive{
-display:flex;
-gap:8px;
-align-items:center;
+function showAdminMessage(result) {
+    const message = document.getElementById('adminMessage');
+    message.className = `mb-6 rounded-2xl border p-4 ${result.success ? 'border-green-500 bg-green-500/10 text-green-200' : 'border-red-500 bg-red-500/10 text-red-200'}`;
+    message.textContent = result.message;
+    message.classList.remove('hidden');
 }
 
-.navActive{
-color:#60a5fa;
+function closeReviewModal() {
+    document.getElementById('reviewModal').classList.add('hidden');
 }
 
+async function loadReview(row) {
+    currentApplicantId = row.dataset.userId;
+    currentApplicantRole = row.dataset.role;
+    const result = await window.mmfPost('ajax_applicant.php', {action: 'review', user_id: currentApplicantId});
+    if (!result.success) {
+        showAdminMessage(result);
+        return;
+    }
 
-.card,
-.statCard{
-background:#162338;
-border:1px solid #334155;
-padding:24px;
-border-radius:20px;
+    const applicant = result.applicant;
+    document.getElementById('reviewName').textContent = applicant.full_name;
+    document.getElementById('reviewEmail').textContent = `${applicant.email} · ${applicant.role}`;
+    document.getElementById('modalEmailBtn').href = `mailto:${applicant.email}?subject=Map%20My%20Future%20Application`;
+
+    const body = document.getElementById('reviewBody');
+    if (applicant.role === 'mentor') {
+        body.innerHTML = `
+            <div class="grid sm:grid-cols-2 gap-3">
+                <div><span class="text-slate-500">Degree</span><p>${applicant.degree || ''}</p></div>
+                <div><span class="text-slate-500">Specialization</span><p>${applicant.specialization || ''}</p></div>
+                <div><span class="text-slate-500">Experience</span><p>${applicant.years_experience || 0} years</p></div>
+                <div><span class="text-slate-500">Industry</span><p>${applicant.industry || ''}</p></div>
+            </div>
+            <div><span class="text-slate-500">Bio</span><p>${applicant.bio || ''}</p></div>
+            ${applicant.resume_upload ? `<a class="text-blue-300" href="../${applicant.resume_upload}" target="_blank">View resume</a>` : ''}
+            <div><h3 class="font-bold mt-3 mb-2">Certifications</h3>${result.certifications.map(cert => `<a class="block text-blue-300" target="_blank" href="../${cert.file_path}">✓ ${cert.title}</a>`).join('') || '<p class="text-slate-500">No certifications uploaded.</p>'}</div>
+        `;
+        document.getElementById('careerAssignmentPanel').classList.remove('hidden');
+        document.getElementById('careerCheckboxes').innerHTML = result.career_paths.map(path => {
+            const checked = result.assigned_careers.some(career => Number(career.career_path_id) === Number(path.path_id));
+            return `<label class="bg-[#162338] border border-[#334155] rounded-xl p-3 flex gap-2 items-center"><input type="checkbox" class="careerCheck" value="${path.path_id}" ${checked ? 'checked' : ''}> ${path.title}</label>`;
+        }).join('');
+    } else {
+        body.innerHTML = `
+            <div class="grid sm:grid-cols-2 gap-3">
+                <div><span class="text-slate-500">Company</span><p>${applicant.company_name || ''}</p></div>
+                <div><span class="text-slate-500">Business Email</span><p>${applicant.business_email || ''}</p></div>
+                <div><span class="text-slate-500">Industry</span><p>${applicant.employer_industry || ''}</p></div>
+                <div><span class="text-slate-500">Company Size</span><p>${applicant.company_size || ''}</p></div>
+                <div><span class="text-slate-500">Website</span><p>${applicant.website || ''}</p></div>
+                <div><span class="text-slate-500">Registration No.</span><p>${applicant.business_registration_number || ''}</p></div>
+                <div><span class="text-slate-500">Contact Person</span><p>${applicant.contact_person || ''}</p></div>
+                <div><span class="text-slate-500">Position</span><p>${applicant.contact_position || ''}</p></div>
+            </div>
+            <div><span class="text-slate-500">Office Address</span><p>${applicant.office_address || ''}</p></div>
+            <div class="flex gap-3 flex-wrap">
+                ${applicant.business_permit_upload ? `<a class="text-blue-300" href="../${applicant.business_permit_upload}" target="_blank">View business permit</a>` : ''}
+                ${applicant.company_profile_pdf ? `<a class="text-blue-300" href="../${applicant.company_profile_pdf}" target="_blank">View company profile</a>` : ''}
+            </div>
+        `;
+        document.getElementById('careerAssignmentPanel').classList.add('hidden');
+    }
+
+    document.getElementById('reviewModal').classList.remove('hidden');
 }
 
-
-.statCard h2{
-font-size:32px;
-font-weight:bold;
-}
-
-
-.statCard p{
-color:#94a3b8;
-}
-
-
-.sectionTitle{
-font-size:24px;
-font-weight:bold;
-}
-
-
-.applicantRow{
-    background:#020B24;
-    border:1px solid #334155;
-    border-radius:16px;
-    padding:16px 18px;
-
-    display:flex;
-    align-items:center;
-    gap:16px;
-
-    transition:.2s;
-}
-
-.applicantRow:hover{
-    border-color:#475569;
-    transform:translateY(-1px);
-}
-
-
-.avatarCircle{
-    width:44px;
-    height:44px;
-
-    border-radius:999px;
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-
-    font-weight:bold;
-
-    background:#2563eb;
-}
-
-
-.badge{
-    padding:6px 12px;
-    border-radius:999px;
-    border:1px solid #334155;
-
-    font-size:12px;
-}
-
-
-.iconApprove,
-.iconReject{
-    width:38px;
-    height:38px;
-
-    border-radius:12px;
-
-    display:flex;
-    align-items:center;
-    justify-content:center;
-
-    transition:.2s;
-}
-
-
-.iconApprove{
-    background:#16a34a;
-}
-
-.iconApprove:hover{
-    background:#15803d;
-}
-
-
-.iconReject{
-    background:#dc2626;
-}
-
-.iconReject:hover{
-    background:#b91c1c;
-}
-
-</style>
-
-
-</body>
-</html>
-
-
-<?php
-
-function badgeClass($status){
-
-    switch($status){
-
-        case "approved":
-            return "badge text-green-400";
-
-        case "rejected":
-            return "badge text-red-400";
-
-        default:
-            return "badge text-yellow-400";
+async function updateApplicant(userId, role, action) {
+    const careerIds = role === 'mentor'
+        ? Array.from(document.querySelectorAll('.careerCheck:checked')).map(input => input.value)
+        : [];
+    const result = await window.mmfPost('ajax_applicant.php', {
+        action,
+        user_id: userId,
+        'career_path_ids[]': careerIds
+    });
+    showAdminMessage(result);
+    if (result.success) {
+        const row = document.querySelector(`.applicantRow[data-user-id="${userId}"]`);
+        row.querySelector('.statusBadge').textContent = action === 'approve' ? 'Approved' : 'Rejected';
+        row.querySelectorAll('.quickApproveBtn,.quickRejectBtn').forEach(button => button.remove());
+        closeReviewModal();
     }
 }
-?>
+
+document.querySelectorAll('.reviewBtn').forEach(button => button.addEventListener('click', () => loadReview(button.closest('.applicantRow'))));
+document.querySelectorAll('.quickApproveBtn').forEach(button => button.addEventListener('click', () => {
+    const row = button.closest('.applicantRow');
+    if (row.dataset.role === 'mentor') {
+        loadReview(row);
+        return;
+    }
+    updateApplicant(row.dataset.userId, row.dataset.role, 'approve');
+}));
+document.querySelectorAll('.quickRejectBtn').forEach(button => button.addEventListener('click', () => {
+    const row = button.closest('.applicantRow');
+    updateApplicant(row.dataset.userId, row.dataset.role, 'reject');
+}));
+document.getElementById('modalApproveBtn').addEventListener('click', () => updateApplicant(currentApplicantId, currentApplicantRole, 'approve'));
+document.getElementById('modalRejectBtn').addEventListener('click', () => updateApplicant(currentApplicantId, currentApplicantRole, 'reject'));
+</script>
+
+<?php include '../footer.php'; ?>

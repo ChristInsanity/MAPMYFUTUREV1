@@ -16,6 +16,12 @@ $progress = getStudentProgress($conn, $userId);
 
 $pageTitle = 'Learning Roadmap';
 $activePage = 'roadmap';
+$backUrl = 'dashboard.php';
+$backLabel = 'Back to Dashboard';
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => 'dashboard.php'],
+    ['label' => 'Roadmap']
+];
 include '../header.php';
 ?>
 

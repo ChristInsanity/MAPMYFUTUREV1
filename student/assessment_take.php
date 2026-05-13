@@ -15,6 +15,7 @@ if (!$assessment || $assessment['task_status'] === 'locked') {
 $result = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $answers = $_POST['answers'] ?? [];
     $score = gradeAssessment($conn, $assessmentId, $answers);
     $passed = saveAssessmentAttempt($conn, $userId, $assessmentId, $score);
@@ -50,6 +51,7 @@ include '../header.php';
 <?php endif; ?>
 
 <form method="POST" class="space-y-5">
+    <?= csrf_input() ?>
     <input type="hidden" name="assessment_id" value="<?= (int)$assessment['assessment_id'] ?>">
 
     <?php foreach ($assessment['questions'] as $index => $question): ?>

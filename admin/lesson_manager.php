@@ -18,6 +18,7 @@ $modules = dbFetchAll(
 );
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $moduleId = (int)($_POST['module_id'] ?? 0);
     $title = sanitize($_POST['title'] ?? '');
     $contentType = sanitize($_POST['content_type'] ?? 'pdf');
@@ -71,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Lesson Manager';
-$activePage = 'admin';
+$activePage = 'lessons';
 include '../header.php';
 ?>
 
@@ -90,6 +91,7 @@ include '../header.php';
 <?php endif; ?>
 
 <form method="POST" enctype="multipart/form-data" class="space-y-6 bg-[#162338] border border-[#334155] rounded-3xl p-6">
+    <?= csrf_input() ?>
     <div class="grid sm:grid-cols-2 gap-4">
         <label class="block">
             <span class="text-slate-400">Module</span>
