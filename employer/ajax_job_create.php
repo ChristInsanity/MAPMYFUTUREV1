@@ -14,5 +14,6 @@ if (sanitize($_POST['title'] ?? '') === '' || sanitize($_POST['required_skills']
 }
 
 $ok = createEmployerJob($conn, (int)$_SESSION['user_id'], $_POST);
-jsonResponse(['success' => $ok, 'message' => $ok ? 'Job post created.' : 'Unable to create job post.'], $ok ? 200 : 422);
+$message = (int)($_POST['job_id'] ?? 0) > 0 ? 'Job post updated.' : 'Job post created.';
+jsonResponse(['success' => $ok, 'message' => $ok ? $message : 'Unable to save job post.'], $ok ? 200 : 422);
 ?>

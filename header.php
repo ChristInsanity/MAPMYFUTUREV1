@@ -11,7 +11,27 @@ $rootPrefix = ($inStudentDir || $inAdminDir || $inMentorDir || $inEmployerDir) ?
 $studentPrefix = $inStudentDir ? '' : 'student/';
 $role = $_SESSION['role'] ?? 'student';
 $userName = $_SESSION['full_name'] ?? $_SESSION['name'] ?? 'User';
+$firstName = strtok($userName, ' ') ?: $userName;
 $avatarInitial = strtoupper(substr($userName, 0, 1));
+$accountRoleLabel = ucfirst($role);
+$profilePhoto = $_SESSION['profile_photo'] ?? null;
+
+if (!$profilePhoto && isset($conn, $_SESSION['user_id'])) {
+    $profileStmt = $conn->prepare("SELECT profile_photo FROM users WHERE user_id = ? LIMIT 1");
+    if ($profileStmt) {
+        $headerUserId = (int)$_SESSION['user_id'];
+        $profileStmt->bind_param("i", $headerUserId);
+        $profileStmt->execute();
+        $profileRow = $profileStmt->get_result()->fetch_assoc();
+        $profilePhoto = $profileRow['profile_photo'] ?? null;
+    }
+}
+
+$profileImageSrc = '';
+if (!empty($profilePhoto)) {
+    $isAbsoluteProfilePhoto = preg_match('/^(https?:)?\/\//', $profilePhoto) || str_starts_with($profilePhoto, '/') || str_starts_with($profilePhoto, '../');
+    $profileImageSrc = $isAbsoluteProfilePhoto ? $profilePhoto : $rootPrefix . $profilePhoto;
+}
 
 if ($inAdminDir) {
     $brand = ['Admin Center', 'dashboard.php', 'fa-shield-halved'];
@@ -59,6 +79,34 @@ if ($inAdminDir) {
         'mentor_tasks' => ['Tasks', $studentPrefix . 'mentor_tasks.php', 'fa-list-check'],
     ];
 }
+
+$profileUrl = null;
+$portfolioUrl = null;
+$premiumUrl = null;
+
+if ($role === 'student') {
+    $studentAccountPrefix = $inStudentDir ? '' : $rootPrefix . 'student/';
+    $profileUrl = $studentAccountPrefix . 'profile.php';
+    $portfolioUrl = $studentAccountPrefix . 'portfolio.php';
+    $premiumUrl = $studentAccountPrefix . 'subscription.php';
+} elseif ($role === 'mentor') {
+    $mentorAccountPrefix = $inMentorDir ? '' : $rootPrefix . 'mentor/';
+    $profileUrl = $mentorAccountPrefix . 'profile.php';
+    $portfolioUrl = $mentorAccountPrefix . 'portfolio.php';
+} elseif ($role === 'employer') {
+    $employerAccountPrefix = $inEmployerDir ? '' : $rootPrefix . 'employer/';
+    $profileUrl = $employerAccountPrefix . 'profile.php';
+} elseif ($role === 'admin') {
+    $adminAccountPrefix = $inAdminDir ? '' : $rootPrefix . 'admin/';
+    $profileUrl = $adminAccountPrefix . 'profile.php';
+}
+
+$profileMenuItems = [
+    ['Profile', 'fa-user', $profileUrl, $activePage === 'profile'],
+    ['Account Settings', 'fa-gear', $profileUrl, $activePage === 'profile'],
+    ['My Portfolio', 'fa-folder-open', $portfolioUrl, $activePage === 'portfolio'],
+    ['Premium', 'fa-crown', $premiumUrl, $activePage === 'subscription'],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -94,7 +142,34 @@ if ($inAdminDir) {
         .dangerBtn{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:#dc2626;padding:12px 18px;border-radius:14px;font-weight:700;}
         .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid #334155;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;}
         .roleBadge{display:inline-flex;align-items:center;min-height:34px;border:1px solid rgba(59,130,246,.35);background:rgba(59,130,246,.12);color:#bfdbfe;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:800;}
-        .avatar{width:40px;height:40px;border-radius:999px;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-weight:800;}
+        .avatar{width:40px;height:40px;border-radius:999px;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-weight:800;overflow:hidden;position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);}
+        .avatar img{width:100%;height:100%;object-fit:cover;}
+        .profileDropdown{position:relative;}
+        .profileTrigger{min-height:48px;display:inline-flex;align-items:center;gap:10px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.7);border-radius:999px;padding:5px 10px 5px 5px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,.18);transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;}
+        .profileTrigger:hover,.profileTrigger:focus-visible{transform:translateY(-1px);border-color:rgba(59,130,246,.55);background:rgba(30,41,59,.88);box-shadow:0 14px 34px rgba(0,0,0,.26),0 0 0 3px rgba(59,130,246,.12);outline:none;}
+        .profileTrigger:hover .avatar,.profileTrigger:focus-visible .avatar{transform:scale(1.04);}
+        .profileTrigger .avatar{transition:transform .18s ease;}
+        .profileName{max-width:110px;font-size:14px;font-weight:800;line-height:1;color:#f8fafc;}
+        .profileChevron{font-size:12px;color:#93c5fd;transition:transform .2s ease;}
+        .profileDropdown.isOpen .profileChevron{transform:rotate(180deg);}
+        .statusDot{position:absolute;right:1px;bottom:1px;width:11px;height:11px;border-radius:999px;background:#22c55e;border:2px solid #0f172a;box-shadow:0 0 0 2px rgba(34,197,94,.15);}
+        .profileMenu{position:absolute;right:0;top:calc(100% + 12px);width:min(330px,calc(100vw - 2rem));padding:10px;border-radius:18px;background:rgba(15,23,42,.92);border:1px solid rgba(148,163,184,.2);box-shadow:0 24px 60px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.03);backdrop-filter:blur(18px);opacity:0;transform:translateY(-8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:80;}
+        .profileDropdown.isOpen .profileMenu{opacity:1;transform:translateY(0);pointer-events:auto;}
+        .profileMenuHeader{display:flex;align-items:center;gap:13px;padding:12px 12px 14px;border-bottom:1px solid rgba(148,163,184,.16);margin-bottom:8px;}
+        .profileMenuHeader .avatar{width:54px;height:54px;font-size:20px;flex:0 0 auto;}
+        .profileMenuName{font-weight:800;color:#f8fafc;line-height:1.25;}
+        .profileMenuRole{color:#93c5fd;font-size:13px;font-weight:700;margin-top:3px;}
+        .profileMenuList{display:grid;gap:4px;}
+        .profileMenuItem{min-height:44px;display:flex;align-items:center;gap:11px;border-radius:12px;padding:10px 12px;color:#cbd5e1;font-weight:700;transition:background .16s ease,color .16s ease,transform .16s ease;}
+        .profileMenuItem i{width:18px;text-align:center;color:#93c5fd;}
+        .profileMenuItem:hover,.profileMenuItem:focus-visible{background:rgba(59,130,246,.12);color:#f8fafc;outline:none;}
+        .profileMenuItem.isActive{background:rgba(59,130,246,.18);color:#bfdbfe;}
+        .profileMenuItem.isDisabled{color:#64748b;cursor:not-allowed;}
+        .profileMenuItem.isDisabled i{color:#64748b;}
+        .profileMenuDivider{height:1px;background:rgba(148,163,184,.16);margin:8px 4px;}
+        .profileLogout{color:#fecaca;}
+        .profileLogout i{color:#f87171;}
+        .profileLogout:hover,.profileLogout:focus-visible{background:rgba(239,68,68,.12);color:#fff;}
         .floatingBack{position:sticky;top:82px;z-index:30;width:max-content;max-width:100%;border-radius:999px;background:#162338;border:1px solid #334155;display:inline-flex;align-items:center;gap:9px;color:#bfdbfe;box-shadow:0 10px 28px rgba(0,0,0,.25);transition:.2s;padding:10px 14px;margin-bottom:18px;}
         .floatingBack:hover{transform:translateX(-3px);border-color:#3B82F6;box-shadow:0 0 22px rgba(59,130,246,.28);}
         .breadcrumbs{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#94a3b8;font-size:14px;margin-bottom:18px;}
@@ -104,7 +179,8 @@ if ($inAdminDir) {
         .masonryCards>*{break-inside:avoid;margin-bottom:1.25rem;}
         @media (min-width:768px){.masonryCards{columns:2;}}
         @media (min-width:1280px){.masonryCards{columns:3;}}
-        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}}
+        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}.mobileMenu .profileDropdown{width:100%;}.mobileMenu .profileTrigger{width:100%;justify-content:space-between;border-radius:16px;padding:6px 12px 6px 6px;}.mobileMenu .profileMenu{position:static;width:100%;margin-top:10px;transform:translateY(-4px);}.mobileMenu .profileDropdown.isOpen .profileMenu{transform:translateY(0);}}
+        @media (max-width: 480px){.profileName{display:none;}.profileMenu{right:auto;left:50%;transform:translate(-50%,-8px);}.profileDropdown.isOpen .profileMenu{transform:translate(-50%,0);}.mobileMenu .profileMenu,.mobileMenu .profileDropdown.isOpen .profileMenu{transform:none;}}
     </style>
 </head>
 <body class="min-h-screen">
@@ -134,12 +210,55 @@ if ($inAdminDir) {
             </div>
 
             <div class="hidden lg:flex items-center gap-3 shrink-0">
-                <span class="roleBadge"><?= e($roleLabel) ?></span>
-                <div class="avatar"><?= e($avatarInitial) ?></div>
-                <a href="<?= e($rootPrefix) ?>logout.php" class="dangerBtn min-h-[44px] px-4 py-2">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                    Logout
-                </a>
+                <div class="profileDropdown" data-profile-menu>
+                    <button type="button" class="profileTrigger" data-profile-toggle aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu">
+                        <span class="avatar" data-avatar-initial="<?= e($avatarInitial) ?>" aria-hidden="true">
+                            <?php if ($profileImageSrc): ?>
+                                <img src="<?= e($profileImageSrc) ?>" alt="" data-profile-avatar-img>
+                            <?php else: ?>
+                                <?= e($avatarInitial) ?>
+                            <?php endif; ?>
+                            <span class="statusDot"></span>
+                        </span>
+                        <span class="profileName truncate"><?= e($firstName) ?></span>
+                        <i class="fa-solid fa-chevron-down profileChevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="profileMenu" data-profile-panel role="menu" hidden>
+                        <div class="profileMenuHeader">
+                            <div class="avatar" data-avatar-initial="<?= e($avatarInitial) ?>">
+                                <?php if ($profileImageSrc): ?>
+                                    <img src="<?= e($profileImageSrc) ?>" alt="<?= e($userName) ?>" data-profile-avatar-img>
+                                <?php else: ?>
+                                    <?= e($avatarInitial) ?>
+                                <?php endif; ?>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="profileMenuName truncate"><?= e($userName) ?></p>
+                                <p class="profileMenuRole"><?= e($accountRoleLabel) ?></p>
+                            </div>
+                        </div>
+                        <div class="profileMenuList">
+                            <?php foreach ($profileMenuItems as $menuItem): ?>
+                                <?php if ($menuItem[2]): ?>
+                                    <a href="<?= e($menuItem[2]) ?>" class="profileMenuItem <?= $menuItem[3] ? 'isActive' : '' ?>" role="menuitem">
+                                        <i class="fa-solid <?= e($menuItem[1]) ?>"></i>
+                                        <?= e($menuItem[0]) ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span class="profileMenuItem isDisabled" role="menuitem" aria-disabled="true">
+                                        <i class="fa-solid <?= e($menuItem[1]) ?>"></i>
+                                        <?= e($menuItem[0]) ?>
+                                    </span>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                            <div class="profileMenuDivider"></div>
+                            <a href="<?= e($rootPrefix) ?>logout.php" class="profileMenuItem profileLogout" role="menuitem">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <button id="mobileMenuBtn" type="button" class="lg:hidden secondaryBtn min-h-[44px] px-4 py-2" aria-expanded="false" aria-controls="mobileMenu">
@@ -149,17 +268,48 @@ if ($inAdminDir) {
         </div>
 
         <div id="mobileMenu" class="mobileMenu hidden lg:hidden">
-            <div class="flex items-center justify-between gap-3 border-b border-slate-700 pb-3 mb-3">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div class="avatar shrink-0"><?= e($avatarInitial) ?></div>
-                    <div class="min-w-0">
-                        <p class="font-bold truncate"><?= e($userName) ?></p>
-                        <span class="roleBadge mt-1"><?= e($roleLabel) ?></span>
+            <div class="border-b border-slate-700 pb-3 mb-3">
+                <div class="profileDropdown" data-profile-menu>
+                    <button type="button" class="profileTrigger" data-profile-toggle aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu">
+                        <span class="flex items-center gap-3 min-w-0">
+                            <span class="avatar shrink-0" data-avatar-initial="<?= e($avatarInitial) ?>" aria-hidden="true">
+                                <?php if ($profileImageSrc): ?>
+                                    <img src="<?= e($profileImageSrc) ?>" alt="" data-profile-avatar-img>
+                                <?php else: ?>
+                                    <?= e($avatarInitial) ?>
+                                <?php endif; ?>
+                                <span class="statusDot"></span>
+                            </span>
+                            <span class="min-w-0 text-left">
+                                <span class="block font-bold truncate"><?= e($userName) ?></span>
+                                <span class="block text-sm text-blue-300 font-semibold"><?= e($accountRoleLabel) ?></span>
+                            </span>
+                        </span>
+                        <i class="fa-solid fa-chevron-down profileChevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="profileMenu" data-profile-panel role="menu" hidden>
+                        <div class="profileMenuList">
+                            <?php foreach ($profileMenuItems as $menuItem): ?>
+                                <?php if ($menuItem[2]): ?>
+                                    <a href="<?= e($menuItem[2]) ?>" class="profileMenuItem <?= $menuItem[3] ? 'isActive' : '' ?>" role="menuitem">
+                                        <i class="fa-solid <?= e($menuItem[1]) ?>"></i>
+                                        <?= e($menuItem[0]) ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span class="profileMenuItem isDisabled" role="menuitem" aria-disabled="true">
+                                        <i class="fa-solid <?= e($menuItem[1]) ?>"></i>
+                                        <?= e($menuItem[0]) ?>
+                                    </span>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                            <div class="profileMenuDivider"></div>
+                            <a href="<?= e($rootPrefix) ?>logout.php" class="profileMenuItem profileLogout" role="menuitem">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                                Logout
+                            </a>
+                        </div>
                     </div>
                 </div>
-                <a href="<?= e($rootPrefix) ?>logout.php" class="dangerBtn min-h-[44px] px-4 py-2">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                </a>
             </div>
 
             <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
@@ -252,6 +402,119 @@ mobileMenuBtn?.addEventListener('click', () => {
     const isOpen = !mobileMenu.classList.contains('hidden');
     mobileMenu.classList.toggle('hidden', isOpen);
     mobileMenuBtn.setAttribute('aria-expanded', String(!isOpen));
+    if (isOpen) {
+        closeAllProfileMenus();
+    }
+});
+
+const profileMenus = Array.from(document.querySelectorAll('[data-profile-menu]'));
+
+document.querySelectorAll('[data-profile-avatar-img]').forEach((image) => {
+    image.addEventListener('error', () => {
+        const avatar = image.closest('.avatar');
+        if (!avatar) return;
+        image.remove();
+        if (!avatar.querySelector('[data-avatar-fallback]')) {
+            const fallback = document.createElement('span');
+            fallback.dataset.avatarFallback = 'true';
+            fallback.textContent = avatar.dataset.avatarInitial || '?';
+            avatar.prepend(fallback);
+        }
+    });
+});
+
+function getFocusableProfileItems(menu) {
+    return Array.from(menu.querySelectorAll('a[role="menuitem"]'));
+}
+
+function closeProfileMenu(menu) {
+    const toggle = menu.querySelector('[data-profile-toggle]');
+    const panel = menu.querySelector('[data-profile-panel]');
+    menu.classList.remove('isOpen');
+    toggle?.setAttribute('aria-expanded', 'false');
+    if (panel) {
+        window.setTimeout(() => {
+            if (!menu.classList.contains('isOpen')) {
+                panel.hidden = true;
+            }
+        }, 180);
+    }
+}
+
+function closeAllProfileMenus(exceptMenu = null) {
+    profileMenus.forEach((menu) => {
+        if (menu !== exceptMenu) {
+            closeProfileMenu(menu);
+        }
+    });
+}
+
+function openProfileMenu(menu, focusFirst = false) {
+    const toggle = menu.querySelector('[data-profile-toggle]');
+    const panel = menu.querySelector('[data-profile-panel]');
+    closeAllProfileMenus(menu);
+    if (panel) {
+        panel.hidden = false;
+    }
+    requestAnimationFrame(() => {
+        menu.classList.add('isOpen');
+        toggle?.setAttribute('aria-expanded', 'true');
+        if (focusFirst) {
+            getFocusableProfileItems(menu)[0]?.focus();
+        }
+    });
+}
+
+profileMenus.forEach((menu) => {
+    const toggle = menu.querySelector('[data-profile-toggle]');
+    const panel = menu.querySelector('[data-profile-panel]');
+
+    toggle?.addEventListener('click', () => {
+        if (menu.classList.contains('isOpen')) {
+            closeProfileMenu(menu);
+        } else {
+            openProfileMenu(menu);
+        }
+    });
+
+    toggle?.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openProfileMenu(menu, true);
+        }
+    });
+
+    panel?.addEventListener('keydown', (event) => {
+        const items = getFocusableProfileItems(menu);
+        const currentIndex = items.indexOf(document.activeElement);
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeProfileMenu(menu);
+            toggle?.focus();
+        }
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const direction = event.key === 'ArrowDown' ? 1 : -1;
+            const nextIndex = currentIndex === -1
+                ? 0
+                : (currentIndex + direction + items.length) % items.length;
+            items[nextIndex]?.focus();
+        }
+    });
+});
+
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-profile-menu]')) {
+        closeAllProfileMenus();
+    }
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeAllProfileMenus();
+    }
 });
 
 document.querySelectorAll('[data-nav-arrow]').forEach((button) => {

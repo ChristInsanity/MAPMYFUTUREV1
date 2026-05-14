@@ -33,65 +33,71 @@ $steps = [
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
-<body class="bg-[#020B24] text-white min-h-screen flex items-center justify-center px-4 py-10">
+<body class="bg-[#020B24] text-white min-h-screen flex items-center justify-center px-4 py-6 overflow-x-hidden">
 
 <div class="w-full max-w-2xl">
-    <div class="text-center mb-10">
-        <div class="w-20 h-20 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-5 animate-pulse shadow-lg shadow-blue-600/25">
-            <i class="fa-solid fa-brain text-2xl"></i>
-        </div>
-        <h1 class="text-3xl font-bold mb-3">Analyzing Your Future Map</h1>
-        <p class="text-slate-400">Map My Future is turning your discovery profile into a structured IT career roadmap.</p>
-    </div>
-
-    <div class="bg-[#162338] border border-[#334155] rounded-2xl p-6 lg:p-8">
-        <div class="space-y-4 mb-8">
-            <?php foreach ($steps as $index => $step): ?>
-                <div class="processStep <?= $index === 0 ? 'activeStep' : '' ?>">
-                    <div class="w-11 h-11 rounded-xl bg-[#020B24] border border-[#334155] flex items-center justify-center text-blue-300">
-                        <i class="fa-solid <?= e($step['icon']) ?>"></i>
-                    </div>
-                    <span><?= e($step['text']) ?></span>
-                    <div class="loaderDots <?= $index === 0 ? '' : 'hidden' ?>">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <div>
-            <div class="flex justify-between mb-2 text-sm text-slate-400">
-                <span>Processing</span>
-                <span id="progressText">0%</span>
+    <section class="aiCard" aria-live="polite">
+        <div class="text-center mb-7">
+            <div class="aiOrb mx-auto">
+                <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
             </div>
-            <div class="bg-[#020B24] border border-[#334155] h-3 rounded-full overflow-hidden">
-                <div id="progressBar" class="bg-blue-600 h-full transition-all duration-300" style="width:0%"></div>
-            </div>
-        </div>
-
-        <div class="mt-7 bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
-            <p class="text-sm text-slate-300">
-                Preparing <?= e($profile['career_path']) ?> subjects, modules, tasks, and unlock rules from your saved profile.
+            <p class="text-blue-300 font-semibold mb-2">AI roadmap generation</p>
+            <h1 class="text-3xl lg:text-4xl font-bold mb-3">Building your future map</h1>
+            <p class="text-slate-400 max-w-lg mx-auto leading-7">
+                Personalizing your <?= e($profile['career_path']) ?> roadmap with subjects, milestones, and readiness signals.
             </p>
         </div>
-    </div>
 
-    <div class="text-center mt-6 text-slate-500 text-sm">
-        Your roadmap always starts at Year 1 Semester 1, then unlocks as you complete subjects.
-    </div>
+        <div class="processingBlock">
+            <div class="flex items-end justify-between gap-4 mb-3">
+                <p class="text-sm font-semibold text-slate-300">Processing</p>
+                <span id="progressText" class="text-2xl font-bold text-blue-200">0%</span>
+            </div>
+
+            <div class="bg-[#020B24] border border-[#334155] h-2 rounded-full overflow-hidden mb-5">
+                <div id="progressBar" class="progressGlow h-full w-0 transition-all duration-300"></div>
+            </div>
+
+            <div class="space-y-2.5">
+                <?php foreach ($steps as $index => $step): ?>
+                    <div class="processStep <?= $index === 0 ? 'activeStep' : '' ?>">
+                        <div class="stepIcon">
+                            <i class="fa-solid <?= e($step['icon']) ?> stepSourceIcon"></i>
+                            <i class="fa-solid fa-check stepDoneIcon"></i>
+                        </div>
+                        <span><?= e($step['text']) ?></span>
+                        <div class="loaderDots <?= $index === 0 ? '' : 'hidden' ?>">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+        </div>
+    </section>
 </div>
 
 <style>
-    .processStep{display:flex;align-items:center;gap:16px;padding:16px;border-radius:16px;background:#020B24;border:1px solid #334155;opacity:.45;transition:.35s;}
-    .activeStep{opacity:1;border-color:#3B82F6;box-shadow:0 0 20px rgba(59,130,246,.16);}
+    .aiCard{background:rgba(22,35,56,.9);border:1px solid rgba(51,65,85,.9);border-radius:16px;padding:24px;box-shadow:0 20px 46px rgba(0,0,0,.32),0 1px 0 rgba(255,255,255,.03) inset;backdrop-filter:blur(16px);}
+    .aiOrb{width:58px;height:58px;border-radius:16px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:18px;box-shadow:0 0 28px rgba(37,99,235,.34);animation:softPulse 2.4s ease-in-out infinite;}
+    .processingBlock{background:rgba(2,11,36,.55);border:1px solid rgba(51,65,85,.78);border-radius:14px;padding:16px;}
+    .progressGlow{background:#3B82F6;box-shadow:0 0 16px rgba(59,130,246,.42);}
+    .processStep{display:flex;align-items:center;gap:12px;min-height:54px;padding:10px 12px;border-radius:12px;background:#020B24;border:1px solid #334155;opacity:.56;transition:opacity .28s ease,border-color .28s ease,background .28s ease,transform .28s ease;}
+    .activeStep{opacity:1;border-color:#3B82F6;background:rgba(15,23,42,.9);box-shadow:0 8px 22px rgba(0,0,0,.18);}
+    .completedStep{opacity:1;border-color:rgba(34,197,94,.34);background:rgba(34,197,94,.06);}
+    .stepIcon{width:38px;height:38px;border-radius:12px;background:#0f172a;border:1px solid #334155;display:flex;align-items:center;justify-content:center;color:#93c5fd;flex:0 0 auto;}
     .processStep span{flex:1;line-height:1.55;}
+    .stepDoneIcon{display:none;color:#86efac;}
+    .completedStep .stepSourceIcon{display:none;}
+    .completedStep .stepDoneIcon{display:block;}
     .loaderDots{margin-left:auto;display:flex;gap:5px;}
     .loaderDots span{width:6px;height:6px;border-radius:50%;background:#3B82F6;animation:bounce 1s infinite;}
     .loaderDots span:nth-child(2){animation-delay:.2s;}
     .loaderDots span:nth-child(3){animation-delay:.4s;}
+    @media (min-width:768px){.aiCard{padding:28px;}.processingBlock{padding:18px;}}
+    @media (max-width:480px){.aiCard{padding:18px;}.processStep{align-items:flex-start;}.loaderDots{padding-top:16px;}}
     @keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+    @keyframes softPulse{0%,100%{transform:scale(1);box-shadow:0 0 24px rgba(37,99,235,.28);}50%{transform:scale(1.035);box-shadow:0 0 34px rgba(37,99,235,.42);}}
 </style>
 
 <script>
@@ -124,6 +130,7 @@ function activateStep(index){
     steps.forEach((step, stepIndex) => {
         const loader = step.querySelector('.loaderDots');
         step.classList.toggle('activeStep', stepIndex === index);
+        step.classList.toggle('completedStep', stepIndex < index);
         if (loader) {
             loader.classList.toggle('hidden', stepIndex !== index);
         }

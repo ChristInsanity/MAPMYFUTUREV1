@@ -41,11 +41,28 @@ include '../header.php';
     <?php endforeach; ?>
 </div>
 
+<div class="grid xl:grid-cols-3 gap-6 mb-8">
+    <section class="card xl:col-span-2">
+        <div class="flex items-center justify-between gap-4 mb-5">
+            <div>
+                <h2 class="sectionTitle mb-1">Weekly Applications</h2>
+                <p class="text-slate-400">New applications received during the last seven days.</p>
+            </div>
+        </div>
+        <canvas id="weeklyApplicationsChart" height="120"></canvas>
+    </section>
+    <section class="card">
+        <h2 class="sectionTitle mb-1">Hiring Conversion</h2>
+        <p class="text-slate-400 mb-5">Current applicant pipeline by stage.</p>
+        <canvas id="conversionChart" height="220"></canvas>
+    </section>
+</div>
+
 <section class="card">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h2 class="sectionTitle mb-2">Applicant Review</h2>
-            <p class="text-slate-400">Review readiness scores, portfolios, and certifications.</p>
+            <p class="text-slate-400">Review readiness scores, portfolios, resumes, and skill compatibility.</p>
         </div>
         <div class="flex flex-wrap gap-3">
             <a href="jobs.php" class="secondaryBtn"><i class="fa-solid fa-briefcase"></i> Manage Job Posts</a>
@@ -53,5 +70,52 @@ include '../header.php';
         </div>
     </div>
 </section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const weeklyData = <?= json_encode($stats['weekly_applications']) ?>;
+const conversionData = <?= json_encode($stats['conversion']) ?>;
+
+new Chart(document.getElementById('weeklyApplicationsChart'), {
+    type: 'line',
+    data: {
+        labels: weeklyData.map(row => row.label),
+        datasets: [{
+            label: 'Applications',
+            data: weeklyData.map(row => Number(row.total)),
+            borderColor: '#3B82F6',
+            backgroundColor: 'rgba(59,130,246,.18)',
+            fill: true,
+            tension: .35
+        }]
+    },
+    options: {
+        plugins: { legend: { labels: { color: '#cbd5e1' } } },
+        scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,.12)' } },
+            y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: 'rgba(148,163,184,.12)' } }
+        }
+    }
+});
+
+new Chart(document.getElementById('conversionChart'), {
+    type: 'bar',
+    data: {
+        labels: Object.keys(conversionData).map(label => label.charAt(0).toUpperCase() + label.slice(1)),
+        datasets: [{
+            label: 'Applicants',
+            data: Object.values(conversionData).map(Number),
+            backgroundColor: '#3B82F6'
+        }]
+    },
+    options: {
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+            y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: 'rgba(148,163,184,.12)' } }
+        }
+    }
+});
+</script>
 
 <?php include '../footer.php'; ?>

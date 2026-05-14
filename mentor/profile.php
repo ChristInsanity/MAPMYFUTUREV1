@@ -1,6 +1,7 @@
 <?php
 require_once '../auth_guard.php';
 require_once '../includes/student_functions.php';
+require_once '../includes/profile_functions.php';
 
 requireLogin();
 ensureMentorTables($conn);
@@ -12,7 +13,7 @@ $isOwner = ($_SESSION['role'] ?? '') === 'mentor' && $mentorId === $viewerId;
 $mentor = dbFetchOne(
     $conn,
     "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
-            mp.age, mp.degree, mp.specialization, mp.years_experience, mp.industry,
+            mp.age, mp.degree, mp.specialization, mp.years_experience, mp.industry, mp.verification_status,
             mp.bio, mp.experience, mp.linkedin_url, mp.github_url, mp.behance_url, mp.portfolio_url
      FROM users u
      LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
@@ -34,16 +35,28 @@ $activePage = $isOwner ? 'profile' : 'mentors';
 $backUrl = ($_SESSION['role'] ?? '') === 'student' ? '../student/find_mentors.php' : 'dashboard.php';
 $backLabel = 'Back';
 include '../header.php';
+$avatarUrl = profilePhotoUrl($mentor['profile_photo'] ?? '');
+$initials = profileInitials($mentor['full_name'] ?? 'Mentor');
 ?>
 
 <div class="mb-8">
     <div class="flex items-center gap-5">
-        <div class="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold">
-            <?= e(strtoupper(substr($mentor['full_name'], 0, 1))) ?>
+        <div class="w-20 h-20 rounded-2xl bg-blue-600 flex items-center justify-center text-3xl font-bold overflow-hidden">
+            <?php if ($avatarUrl): ?>
+                <img src="<?= e($avatarUrl) ?>" alt="<?= e($mentor['full_name']) ?>" class="w-full h-full object-cover">
+            <?php else: ?>
+                <?= e($initials) ?>
+            <?php endif; ?>
         </div>
         <div>
             <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($mentor['full_name']) ?></h1>
-            <p class="text-slate-400"><?= e($mentor['specialization'] ?? 'Mentor') ?><?= $mentor['years_experience'] !== null ? ' - ' . (int)$mentor['years_experience'] . ' years experience' : '' ?></p>
+            <div class="flex flex-wrap gap-2 text-sm">
+                <span class="badge text-blue-200 border-blue-500/30 bg-blue-500/10">Mentor</span>
+                <span class="badge <?= ($mentor['verification_status'] ?? '') === 'approved' ? 'text-green-200 border-green-500/30 bg-green-500/10' : 'text-yellow-200 border-yellow-500/30 bg-yellow-500/10' ?>">
+                    <?= e(ucfirst($mentor['verification_status'] ?? 'pending')) ?>
+                </span>
+            </div>
+            <p class="text-slate-400 mt-3"><?= e($mentor['specialization'] ?? 'Mentor') ?><?= $mentor['years_experience'] !== null ? ' - ' . (int)$mentor['years_experience'] . ' years experience' : '' ?></p>
         </div>
     </div>
 </div>
@@ -103,17 +116,40 @@ include '../header.php';
             </div>
         </div>
         <?php if ($isOwner): ?>
-            <form id="profileForm" class="card space-y-4">
+            <form id="profileForm" class="card space-y-5" enctype="multipart/form-data">
                 <?= csrf_input() ?>
                 <h2 class="sectionTitle">Edit Profile</h2>
+                <div class="grid md:grid-cols-[220px_minmax(0,1fr)] gap-4">
+                    <label>
+                        <span class="block text-sm text-slate-400 mb-2">Profile photo</span>
+                        <input type="file" name="profile_photo" accept="image/png,image/jpeg,image/webp" class="inputStyle text-sm">
+                    </label>
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <label>
+                            <span class="block text-sm text-slate-400 mb-2">Full name</span>
+                            <input name="full_name" class="inputStyle" value="<?= e($mentor['full_name']) ?>" required>
+                        </label>
+                        <label>
+                            <span class="block text-sm text-slate-400 mb-2">Email</span>
+                            <input type="email" name="email" class="inputStyle" value="<?= e($mentor['email']) ?>" required>
+                        </label>
+                    </div>
+                </div>
                 <textarea name="bio" class="inputStyle min-h-[110px]" placeholder="About"><?= e($mentor['bio']) ?></textarea>
                 <textarea name="experience" class="inputStyle min-h-[130px]" placeholder="Experience"><?= e($mentor['experience']) ?></textarea>
-                <input name="degree" class="inputStyle" placeholder="Degree" value="<?= e($mentor['degree']) ?>">
                 <div class="grid sm:grid-cols-2 gap-4">
+                    <input name="degree" class="inputStyle" placeholder="Degree" value="<?= e($mentor['degree']) ?>">
+                    <input name="specialization" class="inputStyle" placeholder="Specialization" value="<?= e($mentor['specialization']) ?>">
+                    <input name="industry" class="inputStyle" placeholder="Industry" value="<?= e($mentor['industry']) ?>">
+                    <input type="number" min="0" name="years_experience" class="inputStyle" placeholder="Years experience" value="<?= e($mentor['years_experience']) ?>">
                     <input name="linkedin_url" class="inputStyle" placeholder="LinkedIn" value="<?= e($mentor['linkedin_url']) ?>">
                     <input name="github_url" class="inputStyle" placeholder="GitHub" value="<?= e($mentor['github_url']) ?>">
                     <input name="behance_url" class="inputStyle" placeholder="Behance" value="<?= e($mentor['behance_url']) ?>">
                     <input name="portfolio_url" class="inputStyle" placeholder="Portfolio" value="<?= e($mentor['portfolio_url']) ?>">
+                </div>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <input name="certification_title" class="inputStyle" placeholder="New certification title">
+                    <input type="file" name="certification_file" accept=".pdf" class="inputStyle text-sm">
                 </div>
                 <button class="primaryBtn" type="submit">Save Profile</button>
             </form>

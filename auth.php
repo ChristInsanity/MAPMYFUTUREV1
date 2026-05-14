@@ -406,6 +406,13 @@ if(isset($_POST['login'])){
         redirect("employer/dashboard.php");
     }
 }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAjaxRequest()) {
+    jsonResponse([
+        'success' => false,
+        'message' => 'Invalid authentication request. Please refresh and try again.'
+    ], 400);
+}
 ?>
 
 
@@ -709,8 +716,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         <input type="hidden" name="application_note" id="application_note">
 
         <div id="mentorModal" class="hidden fixed inset-0 z-50 bg-black/70 px-4 py-8 overflow-y-auto">
-            <div class="max-w-2xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
-                <div class="flex items-start justify-between gap-4 mb-5">
+            <div class="max-w-2xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-5 max-h-[calc(100vh-4rem)] overflow-y-auto">
+                <div class="flex items-start justify-between gap-4 mb-4">
                     <div>
                         <h2 class="text-2xl font-bold">Mentor Application</h2>
                         <p class="text-slate-400 text-sm mt-1">Complete this so admin can review your mentor account.</p>
@@ -720,7 +727,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
                     </button>
                 </div>
 
-                <div class="grid sm:grid-cols-2 gap-4">
+                <div class="grid sm:grid-cols-2 gap-3">
                     <input type="number" name="mentor_age" min="18" placeholder="Age" class="w-full p-3 rounded-xl bg-slate-800">
                     <input type="text" name="mentor_degree" placeholder="Degree" class="w-full p-3 rounded-xl bg-slate-800">
                     <input type="text" name="mentor_specialization" placeholder="Specialization" class="w-full p-3 rounded-xl bg-slate-800">
@@ -733,9 +740,9 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
                     </label>
                 </div>
 
-                <textarea name="mentor_bio" rows="4" placeholder="Short mentor bio" class="w-full mt-4 p-3 rounded-xl bg-slate-800 resize-none"></textarea>
+                <textarea name="mentor_bio" rows="3" placeholder="Short mentor bio" class="w-full mt-3 p-3 rounded-xl bg-slate-800 resize-none"></textarea>
 
-                <div class="mt-4 bg-[#020B24] border border-[#334155] rounded-xl p-4">
+                <div class="mt-3 bg-[#020B24] border border-[#334155] rounded-xl p-4">
                     <div class="flex items-center justify-between gap-3 mb-3">
                         <h3 class="font-bold">Certifications</h3>
                         <button type="button" onclick="openCertificationModal()" class="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl text-sm">
@@ -768,8 +775,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         </div>
 
         <div id="employerModal" class="hidden fixed inset-0 z-50 bg-black/70 px-4 py-8 overflow-y-auto">
-            <div class="max-w-3xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
-                <div class="flex items-start justify-between gap-4 mb-5">
+            <div class="max-w-3xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-5 max-h-[calc(100vh-4rem)] overflow-y-auto">
+                <div class="flex items-start justify-between gap-4 mb-4">
                     <div>
                         <h2 class="text-2xl font-bold">Employer Application</h2>
                         <p class="text-slate-400 text-sm mt-1">Company identity, verification, and contact details.</p>
@@ -780,7 +787,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
                 </div>
 
                 <h3 class="font-bold mb-3 text-blue-200">Company Identity</h3>
-                <div class="grid sm:grid-cols-2 gap-4 mb-5">
+                <div class="grid sm:grid-cols-2 gap-3 mb-4">
                     <input type="text" name="employer_company_name" placeholder="Company Name" class="w-full p-3 rounded-xl bg-slate-800">
                     <input type="email" name="employer_business_email" placeholder="Business Email" class="w-full p-3 rounded-xl bg-slate-800">
                     <input type="text" name="employer_industry" placeholder="Industry" class="w-full p-3 rounded-xl bg-slate-800">
@@ -789,7 +796,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
                 </div>
 
                 <h3 class="font-bold mb-3 text-blue-200">Verification</h3>
-                <div class="grid sm:grid-cols-2 gap-4 mb-5">
+                <div class="grid sm:grid-cols-2 gap-3 mb-4">
                     <input type="text" name="employer_registration_number" placeholder="Business Registration Number" class="w-full p-3 rounded-xl bg-slate-800">
                     <label class="block">
                         <span class="block text-sm text-slate-400 mb-2">Business Permit Upload (PDF)</span>
@@ -802,7 +809,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
                 </div>
 
                 <h3 class="font-bold mb-3 text-blue-200">Contact</h3>
-                <div class="grid sm:grid-cols-2 gap-4">
+                <div class="grid sm:grid-cols-2 gap-3">
                     <input type="text" name="employer_contact_person" placeholder="Contact Person" class="w-full p-3 rounded-xl bg-slate-800">
                     <input type="text" name="employer_contact_position" placeholder="Position" class="w-full p-3 rounded-xl bg-slate-800">
                     <input type="text" name="employer_contact_number" placeholder="Contact Number" class="w-full p-3 rounded-xl bg-slate-800">
@@ -837,13 +844,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 .roleCard{
 
     display:flex;
-    gap:16px;
+    gap:12px;
 
     align-items:center;
 
-    padding:16px;
+    padding:12px 14px;
 
-    border-radius:16px;
+    border-radius:14px;
 
     cursor:pointer;
 
@@ -1019,36 +1026,6 @@ document
 });
 
 refreshApplicationDetails();
-
-registerForm.addEventListener('submit', async (event) => {
-    const selectedRole = document.querySelector('input[name="role"]:checked')?.value;
-    if (selectedRole !== 'employer') {
-        return;
-    }
-
-    event.preventDefault();
-    const formData = new FormData(registerForm);
-    const button = registerForm.querySelector('button[name="register"]');
-    button.disabled = true;
-    button.textContent = 'Submitting...';
-
-    const response = await fetch('auth.php', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json'
-        }
-    });
-    const result = await response.json();
-    alert(result.message || (result.success ? 'Application submitted for review.' : 'Unable to submit application.'));
-    if (result.success) {
-        window.location = 'auth.php';
-    } else {
-        button.disabled = false;
-        button.textContent = 'Create Account';
-    }
-});
 
 
 </script>

@@ -116,15 +116,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
-<body class="bg-[#020B24] text-white min-h-screen flex items-center justify-center px-4 py-10">
+<body class="bg-[#020B24] text-white min-h-screen px-4 py-6 lg:py-8">
 
-<div class="w-full max-w-4xl">
-    <div class="text-center mb-10">
-        <div class="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center mb-5 shadow-lg shadow-blue-600/30">
+<div class="w-full max-w-5xl mx-auto">
+    <div class="text-center mb-6">
+        <div class="w-14 h-14 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30">
             <i class="fa-solid fa-route text-2xl"></i>
         </div>
-        <h1 class="text-4xl font-bold mb-3">Discover the IT path made for you</h1>
-        <p class="text-slate-400 text-lg">Answer five quick questions so Map My Future can match you with the right career pathway.</p>
+        <h1 class="text-3xl lg:text-4xl font-bold mb-2">Discover the IT path made for you</h1>
+        <p class="text-slate-400">Answer five quick questions so Map My Future can match you with the right career pathway.</p>
     </div>
 
     <?php if (!empty($errors)): ?>
@@ -137,9 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
         </div>
     <?php endif; ?>
 
-    <form method="POST" class="bg-[#162338] border border-[#334155] rounded-3xl p-8 lg:p-10">
+    <form method="POST" class="bg-[#162338] border border-[#334155] rounded-2xl p-5 lg:p-6 shadow-2xl shadow-black/20">
         <?= csrf_input() ?>
-        <div class="flex items-center justify-between mb-8 gap-4">
+        <div class="flex items-center justify-between mb-5 gap-4">
             <div>
                 <p class="text-slate-400">Onboarding progress</p>
                 <h2 class="text-2xl font-bold">Career discovery wizard</h2>
@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
         </div>
 
-        <div class="mb-8">
+        <div class="mb-5">
             <div class="flex justify-between mb-2 text-sm text-slate-400">
                 <span id="stepLabel">Step 1 of 5</span>
                 <span id="progressText">20%</span>
@@ -160,15 +160,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
         </div>
 
-        <div class="space-y-8">
+        <div class="space-y-5">
             <div class="step">
-                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 1</p>
-                <h3 class="text-3xl font-bold mb-4">Who are you?</h3>
-                <div class="grid sm:grid-cols-2 gap-4">
+                <p class="text-slate-400 uppercase tracking-[0.18em] text-xs mb-2">Identity</p>
+                <h3 class="text-2xl font-bold mb-3">Who are you?</h3>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <?php foreach ($studentTypes as $type): ?>
                         <label class="optionCard group">
                             <input type="radio" name="student_type" value="<?= e($type) ?>" class="hidden" required>
-                            <div class="flex items-center gap-3 p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                            <div class="flex items-center gap-3 min-h-[56px] p-4 rounded-2xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
                                 <span class="text-blue-300 text-lg">•</span>
                                 <span><?= e($type) ?></span>
                             </div>
@@ -178,13 +178,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
 
             <div class="step hidden">
-                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 2</p>
-                <h3 class="text-3xl font-bold mb-4">What subjects do you enjoy most?</h3>
-                <div class="grid sm:grid-cols-2 gap-4">
+                <p class="text-slate-400 uppercase tracking-[0.18em] text-xs mb-2">Skills</p>
+                <h3 class="text-2xl font-bold mb-3">What subjects do you enjoy most?</h3>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <?php foreach ($subjectOptions as $subject): ?>
                         <label class="optionCard group">
                             <input type="checkbox" name="favorite_subjects[]" value="<?= e($subject) ?>" class="hidden">
-                            <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                            <div class="min-h-[56px] p-4 rounded-2xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
                                 <span class="text-blue-300 text-lg">✓</span>
                                 <span><?= e($subject) ?></span>
                             </div>
@@ -194,13 +194,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
 
             <div class="step hidden">
-                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 3</p>
-                <h3 class="text-3xl font-bold mb-4">What activities excite you?</h3>
-                <div class="grid sm:grid-cols-2 gap-4">
+                <p class="text-slate-400 uppercase tracking-[0.18em] text-xs mb-2">Professional Details</p>
+                <h3 class="text-2xl font-bold mb-3">What activities excite you?</h3>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <?php foreach ($activityOptions as $activity): ?>
                         <label class="optionCard group">
                             <input type="checkbox" name="activity_preferences[]" value="<?= e($activity) ?>" class="hidden">
-                            <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                            <div class="min-h-[56px] p-4 rounded-2xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
                                 <span class="text-blue-300 text-lg">✓</span>
                                 <span><?= e($activity) ?></span>
                             </div>
@@ -210,13 +210,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
 
             <div class="step hidden">
-                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 4</p>
-                <h3 class="text-3xl font-bold mb-4">What work environment fits you?</h3>
-                <div class="grid sm:grid-cols-2 gap-4">
+                <p class="text-slate-400 uppercase tracking-[0.18em] text-xs mb-2">Goals</p>
+                <h3 class="text-2xl font-bold mb-3">What work environment fits you?</h3>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <?php foreach ($workStyleOptions as $style): ?>
                         <label class="optionCard group">
                             <input type="radio" name="work_style" value="<?= e($style) ?>" class="hidden" required>
-                            <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                            <div class="min-h-[56px] p-4 rounded-2xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
                                 <span class="text-blue-300 text-lg">•</span>
                                 <span><?= e($style) ?></span>
                             </div>
@@ -226,19 +226,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
 
             <div class="step hidden">
-                <p class="text-slate-400 uppercase tracking-[0.24em] text-xs mb-3">Step 5</p>
-                <h3 class="text-3xl font-bold mb-4">Do you already have a dream career?</h3>
-                <div class="grid sm:grid-cols-2 gap-4 mb-4">
+                <p class="text-slate-400 uppercase tracking-[0.18em] text-xs mb-2">Goals</p>
+                <h3 class="text-2xl font-bold mb-3">Do you already have a dream career?</h3>
+                <div class="grid sm:grid-cols-2 gap-3 mb-4">
                     <label class="optionCard group">
                         <input type="radio" name="dream_known" value="yes" class="hidden" required>
-                        <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                        <div class="min-h-[56px] p-4 rounded-2xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
                             <span class="text-blue-300 text-lg">✔</span>
                             <span>I already know</span>
                         </div>
                     </label>
                     <label class="optionCard group">
                         <input type="radio" name="dream_known" value="no" class="hidden" required>
-                        <div class="p-5 rounded-3xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
+                        <div class="min-h-[56px] p-4 rounded-2xl border border-[#334155] transition-all duration-300 group-hover:border-blue-500">
                             <span class="text-blue-300 text-lg">?</span>
                             <span>I’m still exploring</span>
                         </div>
@@ -257,11 +257,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row justify-between gap-4 mt-10">
-            <button type="button" id="backBtn" class="btnSecondary w-full sm:w-auto py-4 px-6 rounded-2xl">Back</button>
+        <div class="flex flex-col sm:flex-row justify-between gap-3 mt-6">
+            <button type="button" id="backBtn" class="btnSecondary min-h-[44px] w-full sm:w-auto py-3 px-5 rounded-xl">Back</button>
             <div class="flex gap-4 w-full sm:w-auto">
-                <button type="button" id="nextBtn" class="btnPrimary w-full py-4 px-6 rounded-2xl">Next</button>
-                <button type="submit" id="submitBtn" class="hidden btnSuccess w-full sm:w-auto py-4 px-6 rounded-2xl">Review Career Matches</button>
+                <button type="button" id="nextBtn" class="btnPrimary min-h-[44px] w-full py-3 px-5 rounded-xl">Next</button>
+                <button type="submit" id="submitBtn" class="hidden btnSuccess min-h-[44px] w-full sm:w-auto py-3 px-5 rounded-xl">Review Career Matches</button>
             </div>
         </div>
     </form>

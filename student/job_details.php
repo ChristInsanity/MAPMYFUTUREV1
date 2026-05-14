@@ -67,7 +67,17 @@ include '../header.php';
         </div>
         <div class="card">
             <h2 class="sectionTitle mb-4">Requirements</h2>
-            <p class="text-slate-300 leading-7"><?= nl2br(e($job['description'])) ?></p>
+            <p class="text-slate-300 leading-7"><?= nl2br(e($job['qualifications'] ?: $job['description'])) ?></p>
+            <div class="grid sm:grid-cols-2 gap-3 mt-5">
+                <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
+                    <p class="text-slate-500 text-sm">Experience</p>
+                    <p class="font-semibold"><?= e($job['required_experience'] ?: 'Not specified') ?></p>
+                </div>
+                <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
+                    <p class="text-slate-500 text-sm">Education</p>
+                    <p class="font-semibold"><?= e($job['education'] ?: 'Not specified') ?></p>
+                </div>
+            </div>
         </div>
         <div class="card">
             <h2 class="sectionTitle mb-4">Preferred Qualifications</h2>
@@ -75,7 +85,10 @@ include '../header.php';
                 <?php foreach (parseSkillTags($job['preferred_skills']) as $skill): ?>
                     <span class="badge text-cyan-200 border-cyan-500/30 bg-cyan-500/10"><?= e($skill) ?></span>
                 <?php endforeach; ?>
-                <?php if (count(parseSkillTags($job['preferred_skills'])) === 0): ?><p class="text-slate-400">No preferred qualifications posted.</p><?php endif; ?>
+                <?php foreach (parseSkillTags($job['optional_skills'] ?? '') as $skill): ?>
+                    <span class="badge text-cyan-200 border-cyan-500/30 bg-cyan-500/10"><?= e($skill) ?></span>
+                <?php endforeach; ?>
+                <?php if (count(parseSkillTags(($job['preferred_skills'] ?? '') . ',' . ($job['optional_skills'] ?? ''))) === 0): ?><p class="text-slate-400">No preferred qualifications posted.</p><?php endif; ?>
             </div>
         </div>
     </section>

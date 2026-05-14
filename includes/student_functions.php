@@ -1357,11 +1357,17 @@ function ensureMentorTables($conn) {
             employment_type VARCHAR(80) DEFAULT NULL,
             description TEXT DEFAULT NULL,
             responsibilities TEXT DEFAULT NULL,
+            qualifications TEXT DEFAULT NULL,
+            required_experience VARCHAR(120) DEFAULT NULL,
+            education VARCHAR(180) DEFAULT NULL,
             required_skills TEXT DEFAULT NULL,
             preferred_skills TEXT DEFAULT NULL,
+            optional_skills TEXT DEFAULT NULL,
             application_deadline DATE DEFAULT NULL,
+            max_applicants INT(11) DEFAULT NULL,
             hiring_process TEXT DEFAULT NULL,
             status ENUM('active','closed') NOT NULL DEFAULT 'active',
+            posting_status ENUM('draft','open','closed','archived') NOT NULL DEFAULT 'open',
             views INT(11) NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (job_id),
@@ -1376,17 +1382,25 @@ function ensureMentorTables($conn) {
     ensureColumn($conn, 'job_posts', 'location', "VARCHAR(180) DEFAULT NULL");
     ensureColumn($conn, 'job_posts', 'employment_type', "VARCHAR(80) DEFAULT NULL");
     ensureColumn($conn, 'job_posts', 'responsibilities', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'qualifications', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'required_experience', "VARCHAR(120) DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'education', "VARCHAR(180) DEFAULT NULL");
     ensureColumn($conn, 'job_posts', 'required_skills', "TEXT DEFAULT NULL");
     ensureColumn($conn, 'job_posts', 'preferred_skills', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'optional_skills', "TEXT DEFAULT NULL");
     ensureColumn($conn, 'job_posts', 'application_deadline', "DATE DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'max_applicants', "INT(11) DEFAULT NULL");
     ensureColumn($conn, 'job_posts', 'hiring_process', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'job_posts', 'status', "ENUM('active','closed') NOT NULL DEFAULT 'active'");
+    ensureColumn($conn, 'job_posts', 'views', "INT(11) NOT NULL DEFAULT 0");
+    ensureColumn($conn, 'job_posts', 'posting_status', "ENUM('draft','open','closed','archived') NOT NULL DEFAULT 'open'");
 
     $conn->query(
         "CREATE TABLE IF NOT EXISTS job_applications (
             application_id INT(11) NOT NULL AUTO_INCREMENT,
             job_id INT(11) NOT NULL,
             user_id INT(11) NOT NULL,
-            status ENUM('submitted','reviewing','shortlisted','interview','hired','rejected') NOT NULL DEFAULT 'submitted',
+            status ENUM('submitted','reviewing','shortlisted','interview','assessment','hired','rejected') NOT NULL DEFAULT 'submitted',
             resume_path VARCHAR(255) DEFAULT NULL,
             cover_letter_path VARCHAR(255) DEFAULT NULL,
             cover_letter TEXT DEFAULT NULL,
@@ -1399,7 +1413,7 @@ function ensureMentorTables($conn) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
     $conn->query("UPDATE job_applications SET status = 'reviewing' WHERE status IN ('reviewed','invited')");
-    $conn->query("ALTER TABLE job_applications MODIFY COLUMN status ENUM('submitted','reviewing','shortlisted','interview','hired','rejected') NOT NULL DEFAULT 'submitted'");
+    $conn->query("ALTER TABLE job_applications MODIFY COLUMN status ENUM('submitted','reviewing','shortlisted','interview','assessment','hired','rejected') NOT NULL DEFAULT 'submitted'");
     ensureColumn($conn, 'job_applications', 'resume_path', "VARCHAR(255) DEFAULT NULL");
     ensureColumn($conn, 'job_applications', 'cover_letter_path', "VARCHAR(255) DEFAULT NULL");
     ensureColumn($conn, 'job_applications', 'updated_at', "DATETIME DEFAULT NULL");
@@ -2038,10 +2052,26 @@ function getEmployerDashboardStats($conn, $employerId) {
         'active_jobs' => 0,
         'applicants' => 0,
         'hires' => 0,
-        'views' => 0
+        'views' => 0,
+        'weekly_applications' => [],
+        'monthly_applications' => [],
+        'conversion' => [
+            'submitted' => 0,
+            'shortlisted' => 0,
+            'interview' => 0,
+            'assessment' => 0,
+            'hired' => 0
+        ]
     ];
 
-    $row = dbFetchOne($conn, "SELECT COUNT(*) AS total, COALESCE(SUM(views), 0) AS views FROM job_posts WHERE employer_id = ? AND status = 'active'", "i", [$employerId]);
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COUNT(*) AS total, COALESCE(SUM(views), 0) AS views
+         FROM job_posts
+         WHERE employer_id = ? AND status = 'active' AND posting_status = 'open'",
+        "i",
+        [$employerId]
+    );
     $stats['active_jobs'] = (int)($row['total'] ?? 0);
     $stats['views'] = (int)($row['views'] ?? 0);
 
@@ -2057,6 +2087,46 @@ function getEmployerDashboardStats($conn, $employerId) {
     );
     $stats['applicants'] = (int)($row['applicants'] ?? 0);
     $stats['hires'] = (int)($row['hires'] ?? 0);
+
+    $stats['weekly_applications'] = dbFetchAll(
+        $conn,
+        "SELECT DATE_FORMAT(ja.applied_at, '%b %d') AS label, COUNT(*) AS total
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         WHERE jp.employer_id = ? AND ja.applied_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+         GROUP BY DATE(ja.applied_at), DATE_FORMAT(ja.applied_at, '%b %d')
+         ORDER BY DATE(ja.applied_at)",
+        "i",
+        [$employerId]
+    );
+
+    $stats['monthly_applications'] = dbFetchAll(
+        $conn,
+        "SELECT DATE_FORMAT(ja.applied_at, '%Y-%m') AS label, COUNT(*) AS total
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         WHERE jp.employer_id = ? AND ja.applied_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+         GROUP BY DATE_FORMAT(ja.applied_at, '%Y-%m')
+         ORDER BY label",
+        "i",
+        [$employerId]
+    );
+
+    $conversionRows = dbFetchAll(
+        $conn,
+        "SELECT ja.status, COUNT(*) AS total
+         FROM job_applications ja
+         JOIN job_posts jp ON jp.job_id = ja.job_id
+         WHERE jp.employer_id = ?
+         GROUP BY ja.status",
+        "i",
+        [$employerId]
+    );
+    foreach ($conversionRows as $conversionRow) {
+        if (array_key_exists($conversionRow['status'], $stats['conversion'])) {
+            $stats['conversion'][$conversionRow['status']] = (int)$conversionRow['total'];
+        }
+    }
 
     return $stats;
 }
@@ -2217,7 +2287,7 @@ function getRelevantJobsForStudent($conn, $studentId) {
          JOIN users u ON u.user_id = jp.employer_id
          LEFT JOIN employer_profiles ep ON ep.user_id = jp.employer_id
          LEFT JOIN job_applications ja ON ja.job_id = jp.job_id AND ja.user_id = ?
-         WHERE jp.status = 'active' AND (jp.path_id = ? OR jp.path_id IS NULL)
+         WHERE jp.status = 'active' AND jp.posting_status = 'open' AND (jp.path_id = ? OR jp.path_id IS NULL)
          ORDER BY jp.created_at DESC",
         "ii",
         [$studentId, $pathId]
@@ -2243,7 +2313,7 @@ function getJobDetailsForStudent($conn, $studentId, $jobId) {
          JOIN users u ON u.user_id = jp.employer_id
          LEFT JOIN employer_profiles ep ON ep.user_id = jp.employer_id
          LEFT JOIN job_applications ja ON ja.job_id = jp.job_id AND ja.user_id = ?
-         WHERE jp.job_id = ? AND jp.status = 'active' AND (jp.path_id = ? OR jp.path_id IS NULL)",
+         WHERE jp.job_id = ? AND jp.status = 'active' AND jp.posting_status = 'open' AND (jp.path_id = ? OR jp.path_id IS NULL)",
         "iii",
         [$studentId, $jobId, $pathId]
     );
@@ -2282,47 +2352,159 @@ function createJobApplication($conn, $studentId, $jobId, $resumePath, $coverLett
 function createEmployerJob($conn, $employerId, $data) {
     ensureMentorTables($conn);
 
+    $postingStatus = sanitize($data['posting_status'] ?? 'open');
+    if (!in_array($postingStatus, ['draft', 'open', 'closed', 'archived'], true)) {
+        $postingStatus = 'open';
+    }
+
+    $legacyStatus = in_array($postingStatus, ['closed', 'archived'], true) ? 'closed' : 'active';
+    $deadline = sanitize($data['application_deadline'] ?? '');
+    $deadline = $deadline !== '' ? $deadline : null;
+    $maxApplicants = (int)($data['max_applicants'] ?? 0);
+    $maxApplicants = $maxApplicants > 0 ? $maxApplicants : null;
+    $jobId = (int)($data['job_id'] ?? 0);
+
+    $params = [
+        (int)($data['path_id'] ?? 0) ?: null,
+        sanitize($data['title'] ?? ''),
+        sanitize($data['department'] ?? ''),
+        sanitize($data['work_setup'] ?? 'onsite'),
+        sanitize($data['salary'] ?? ''),
+        sanitize($data['location'] ?? ''),
+        sanitize($data['employment_type'] ?? ''),
+        sanitize($data['description'] ?? ''),
+        sanitize($data['responsibilities'] ?? ''),
+        sanitize($data['qualifications'] ?? ''),
+        sanitize($data['required_experience'] ?? ''),
+        sanitize($data['education'] ?? ''),
+        sanitize($data['required_skills'] ?? ''),
+        sanitize($data['preferred_skills'] ?? ''),
+        sanitize($data['optional_skills'] ?? ''),
+        $deadline,
+        $maxApplicants,
+        sanitize($data['hiring_process'] ?? ''),
+        $legacyStatus,
+        $postingStatus
+    ];
+
+    if ($jobId > 0) {
+        return dbExecute(
+            $conn,
+            "UPDATE job_posts
+             SET path_id = ?, title = ?, department = ?, work_setup = ?, salary = ?, location = ?, employment_type = ?,
+                 description = ?, responsibilities = ?, qualifications = ?, required_experience = ?, education = ?,
+                 required_skills = ?, preferred_skills = ?, optional_skills = ?, application_deadline = ?, max_applicants = ?,
+                 hiring_process = ?, status = ?, posting_status = ?
+             WHERE job_id = ? AND employer_id = ?",
+            "isssssssssssssssisssii",
+            array_merge($params, [$jobId, $employerId])
+        );
+    }
+
     return dbExecute(
         $conn,
         "INSERT INTO job_posts
-         (employer_id, path_id, title, department, work_setup, salary, location, employment_type, description, responsibilities, required_skills, preferred_skills, application_deadline, hiring_process, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
-        "iissssssssssss",
-        [
-            $employerId,
-            (int)($data['path_id'] ?? 0) ?: null,
-            sanitize($data['title'] ?? ''),
-            sanitize($data['department'] ?? ''),
-            sanitize($data['work_setup'] ?? 'onsite'),
-            sanitize($data['salary'] ?? ''),
-            sanitize($data['location'] ?? ''),
-            sanitize($data['employment_type'] ?? ''),
-            sanitize($data['description'] ?? ''),
-            sanitize($data['responsibilities'] ?? ''),
-            sanitize($data['required_skills'] ?? ''),
-            sanitize($data['preferred_skills'] ?? ''),
-            sanitize($data['application_deadline'] ?? ''),
-            sanitize($data['hiring_process'] ?? '')
-        ]
+         (employer_id, path_id, title, department, work_setup, salary, location, employment_type, description, responsibilities,
+          qualifications, required_experience, education, required_skills, preferred_skills, optional_skills, application_deadline,
+          max_applicants, hiring_process, status, posting_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "iisssssssssssssssisss",
+        array_merge([$employerId], $params)
     );
 }
 
 function getEmployerJobs($conn, $employerId) {
     ensureMentorTables($conn);
 
-    return dbFetchAll(
+    $jobs = dbFetchAll(
         $conn,
         "SELECT jp.*, cp.title AS career_title,
-                COUNT(ja.application_id) AS applicant_count
+                COALESCE(app.applicant_count, 0) AS applicant_count,
+                COALESCE(app.active_applicants, 0) AS active_applicants,
+                COALESCE(app.submitted_count, 0) AS submitted_count,
+                COALESCE(app.reviewing_count, 0) AS reviewing_count,
+                COALESCE(app.shortlisted_count, 0) AS shortlisted_count,
+                COALESCE(app.interview_count, 0) AS interview_count,
+                COALESCE(app.assessment_count, 0) AS assessment_count,
+                COALESCE(app.hired_count, 0) AS hired_count
          FROM job_posts jp
          LEFT JOIN career_paths cp ON cp.path_id = jp.path_id
-         LEFT JOIN job_applications ja ON ja.job_id = jp.job_id
+         LEFT JOIN (
+            SELECT job_id,
+                   COUNT(application_id) AS applicant_count,
+                   COUNT(CASE WHEN status NOT IN ('hired','rejected') THEN 1 END) AS active_applicants,
+                   COUNT(CASE WHEN status = 'submitted' THEN 1 END) AS submitted_count,
+                   COUNT(CASE WHEN status = 'reviewing' THEN 1 END) AS reviewing_count,
+                   COUNT(CASE WHEN status = 'shortlisted' THEN 1 END) AS shortlisted_count,
+                   COUNT(CASE WHEN status = 'interview' THEN 1 END) AS interview_count,
+                   COUNT(CASE WHEN status = 'assessment' THEN 1 END) AS assessment_count,
+                   COUNT(CASE WHEN status = 'hired' THEN 1 END) AS hired_count
+            FROM job_applications
+            GROUP BY job_id
+         ) app ON app.job_id = jp.job_id
          WHERE jp.employer_id = ?
-         GROUP BY jp.job_id, cp.title
          ORDER BY jp.created_at DESC",
         "i",
         [$employerId]
     );
+
+    foreach ($jobs as $index => $job) {
+        $applicants = dbFetchAll($conn, "SELECT user_id FROM job_applications WHERE job_id = ?", "i", [(int)$job['job_id']]);
+        $totalCompatibility = 0;
+        foreach ($applicants as $applicant) {
+            $totalCompatibility += calculateJobCompatibility($conn, (int)$applicant['user_id'], $job);
+        }
+
+        $jobs[$index]['compatibility_average'] = count($applicants) > 0 ? (int)round($totalCompatibility / count($applicants)) : 0;
+        $stageCounts = [
+            'Assessment' => (int)$job['assessment_count'],
+            'Interview' => (int)$job['interview_count'],
+            'Shortlisted' => (int)$job['shortlisted_count'],
+            'Reviewing' => (int)$job['reviewing_count'],
+            'New' => (int)$job['submitted_count'],
+            'Hired' => (int)$job['hired_count']
+        ];
+        $jobs[$index]['hiring_stage'] = 'No applicants';
+        foreach ($stageCounts as $label => $count) {
+            if ($count > 0) {
+                $jobs[$index]['hiring_stage'] = $label;
+                break;
+            }
+        }
+    }
+
+    return $jobs;
+}
+
+function updateEmployerJobStatus($conn, $employerId, $jobId, $postingStatus) {
+    ensureMentorTables($conn);
+
+    if (!in_array($postingStatus, ['draft', 'open', 'closed', 'archived'], true)) {
+        return false;
+    }
+
+    $legacyStatus = in_array($postingStatus, ['closed', 'archived'], true) ? 'closed' : 'active';
+    return dbExecute(
+        $conn,
+        "UPDATE job_posts SET posting_status = ?, status = ? WHERE job_id = ? AND employer_id = ?",
+        "ssii",
+        [$postingStatus, $legacyStatus, $jobId, $employerId]
+    );
+}
+
+function duplicateEmployerJob($conn, $employerId, $jobId) {
+    ensureMentorTables($conn);
+
+    $job = dbFetchOne($conn, "SELECT * FROM job_posts WHERE job_id = ? AND employer_id = ?", "ii", [$jobId, $employerId]);
+    if (!$job) {
+        return false;
+    }
+
+    $job['title'] = ($job['title'] ?? 'Job') . ' Copy';
+    $job['posting_status'] = 'draft';
+    unset($job['job_id']);
+
+    return createEmployerJob($conn, $employerId, $job);
 }
 
 function getEmployerApplicantsByStage($conn, $employerId) {
@@ -2330,7 +2512,8 @@ function getEmployerApplicantsByStage($conn, $employerId) {
 
     $rows = dbFetchAll(
         $conn,
-        "SELECT ja.*, jp.title AS job_title, jp.employer_id, u.full_name, u.email,
+        "SELECT ja.*, jp.title AS job_title, jp.employer_id, jp.required_skills, jp.preferred_skills, jp.optional_skills,
+                u.full_name, u.email,
                 sp.career_path, sp.readiness_score
          FROM job_applications ja
          JOIN job_posts jp ON jp.job_id = ja.job_id
@@ -2342,8 +2525,9 @@ function getEmployerApplicantsByStage($conn, $employerId) {
         [$employerId]
     );
 
-    $stages = ['submitted' => [], 'reviewing' => [], 'shortlisted' => [], 'interview' => [], 'hired' => [], 'rejected' => []];
+    $stages = ['submitted' => [], 'reviewing' => [], 'shortlisted' => [], 'interview' => [], 'assessment' => [], 'hired' => [], 'rejected' => []];
     foreach ($rows as $row) {
+        $row['compatibility'] = calculateJobCompatibility($conn, (int)$row['user_id'], $row);
         $stages[$row['status']][] = $row;
     }
     return $stages;
@@ -2352,7 +2536,7 @@ function getEmployerApplicantsByStage($conn, $employerId) {
 function updateJobApplicationStatus($conn, $employerId, $applicationId, $status) {
     ensureMentorTables($conn);
 
-    if (!in_array($status, ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'], true)) {
+    if (!in_array($status, ['reviewing', 'shortlisted', 'interview', 'assessment', 'hired', 'rejected'], true)) {
         return false;
     }
 
@@ -2446,7 +2630,7 @@ function getSalesReportData($conn) {
     $hiringTotals = dbFetchOne(
         $conn,
         "SELECT
-            (SELECT COUNT(*) FROM job_posts WHERE status = 'active') AS active_jobs,
+            (SELECT COUNT(*) FROM job_posts WHERE status = 'active' AND posting_status = 'open') AS active_jobs,
             (SELECT COUNT(*) FROM job_applications) AS applications,
             (SELECT COUNT(*) FROM student_employment_history) AS hired_students"
     );
