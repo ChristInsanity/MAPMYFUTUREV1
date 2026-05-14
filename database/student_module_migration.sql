@@ -41,32 +41,32 @@ CREATE TABLE IF NOT EXISTS student_profiles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS career_paths (
-  career_id INT(11) NOT NULL AUTO_INCREMENT,
+  path_id INT(11) NOT NULL AUTO_INCREMENT,
   title VARCHAR(120) NOT NULL,
-  category VARCHAR(100) NOT NULL,
+  category VARCHAR(100) DEFAULT NULL,
   description TEXT NOT NULL,
-  average_salary_ph VARCHAR(100) NOT NULL,
-  industry VARCHAR(120) NOT NULL,
+  average_salary_ph VARCHAR(100) DEFAULT NULL,
+  industry VARCHAR(120) DEFAULT 'Philippine IT Industry',
   icon VARCHAR(80) NOT NULL DEFAULT 'fa-route',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (career_id),
+  PRIMARY KEY (path_id),
   UNIQUE KEY uq_career_paths_title (title)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS student_career_matches (
   match_id INT(11) NOT NULL AUTO_INCREMENT,
   user_id INT(11) NOT NULL,
-  career_id INT(11) NOT NULL,
+  path_id INT(11) DEFAULT NULL,
   match_percentage INT(11) NOT NULL DEFAULT 0,
   current_progress INT(11) NOT NULL DEFAULT 0,
   is_primary TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (match_id),
-  UNIQUE KEY uq_student_career_match (user_id, career_id),
+  UNIQUE KEY uq_student_career_match (user_id, path_id),
   KEY idx_student_career_matches_user (user_id),
-  KEY idx_student_career_matches_career (career_id),
+  KEY idx_student_career_matches_path (path_id),
   CONSTRAINT fk_student_career_matches_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-  CONSTRAINT fk_student_career_matches_career FOREIGN KEY (career_id) REFERENCES career_paths(career_id) ON DELETE CASCADE
+  CONSTRAINT fk_student_career_matches_path FOREIGN KEY (path_id) REFERENCES career_paths(path_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS learning_paths (
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS learning_paths (
   PRIMARY KEY (path_id),
   UNIQUE KEY uq_learning_path_phase (career_id, phase_order),
   KEY idx_learning_paths_career (career_id),
-  CONSTRAINT fk_learning_paths_career FOREIGN KEY (career_id) REFERENCES career_paths(career_id) ON DELETE CASCADE
+  CONSTRAINT fk_learning_paths_career FOREIGN KEY (career_id) REFERENCES career_paths(path_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS roadmap_tasks (

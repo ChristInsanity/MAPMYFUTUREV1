@@ -1,7 +1,4 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-DROP DATABASE IF EXISTS `test`;
-CREATE DATABASE IF NOT EXISTS `test` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `test`;
 START TRANSACTION;
 SET time_zone = "+00:00";
 
@@ -429,20 +426,26 @@ VALUES
 ('Software Engineer', 'Builds reliable applications, APIs, databases, and production software systems for real users.', 'fa-code', 'Engineering', 'PHP 30,000 - PHP 90,000', 'Software Development'),
 ('UI/UX Designer', 'Designs usable digital products through research, information architecture, prototyping, and interface systems.', 'fa-pen-nib', 'Design', 'PHP 25,000 - PHP 60,000', 'Product Design'),
 ('Data Analyst', 'Turns raw data into cleaned datasets, dashboards, insights, and business recommendations.', 'fa-chart-simple', 'Analytics', 'PHP 28,000 - PHP 75,000', 'Data Analytics'),
-('Cybersecurity Analyst', 'Protects systems by identifying risks, monitoring threats, and improving security controls.', 'fa-shield-halved', 'Security', 'PHP 35,000 - PHP 95,000', 'Cybersecurity');
+('Cybersecurity Analyst', 'Protects systems by identifying risks, monitoring threats, and improving security controls.', 'fa-shield-halved', 'Security', 'PHP 35,000 - PHP 95,000', 'Cybersecurity')
+ON DUPLICATE KEY UPDATE
+description = VALUES(description),
+icon = VALUES(icon),
+category = VALUES(category),
+average_salary_ph = VALUES(average_salary_ph),
+industry = VALUES(industry);
 
-INSERT INTO career_years (path_id, year_number)
+INSERT IGNORE INTO career_years (path_id, year_number)
 SELECT cp.path_id, y.year_number
 FROM career_paths cp
 JOIN (SELECT 1 AS year_number UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4) y
 WHERE cp.title IN ('Software Engineer','UI/UX Designer','Data Analyst','Cybersecurity Analyst');
 
-INSERT INTO career_semesters (year_id, semester_number)
+INSERT IGNORE INTO career_semesters (year_id, semester_number)
 SELECT cy.year_id, s.semester_number
 FROM career_years cy
 JOIN (SELECT 1 AS semester_number UNION ALL SELECT 2) s;
 
-INSERT INTO career_subjects (semester_id, subject_code, subject_title, description, subject_order)
+INSERT IGNORE INTO career_subjects (semester_id, subject_code, subject_title, description, subject_order)
 SELECT csem.semester_id, seed.subject_code, seed.subject_title, seed.description, seed.subject_order
 FROM (
   SELECT 'Software Engineer' career, 1 yr, 1 sem, 1 subject_order, 'SE101' subject_code, 'Programming Fundamentals' subject_title, 'Core programming concepts, control flow, functions, debugging, and computational thinking.' description
@@ -546,43 +549,43 @@ JOIN career_paths cp ON cp.title = seed.career
 JOIN career_years cy ON cy.path_id = cp.path_id AND cy.year_number = seed.yr
 JOIN career_semesters csem ON csem.year_id = cy.year_id AND csem.semester_number = seed.sem;
 
-INSERT INTO subject_modules (subject_id, title, module_order)
+INSERT IGNORE INTO subject_modules (subject_id, title, module_order)
 SELECT subject_id, CONCAT(subject_title, ' Concepts'), 1 FROM career_subjects;
 
-INSERT INTO subject_modules (subject_id, title, module_order)
+INSERT IGNORE INTO subject_modules (subject_id, title, module_order)
 SELECT subject_id, CONCAT(subject_title, ' Lab'), 2 FROM career_subjects;
 
-INSERT INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
+INSERT IGNORE INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
 SELECT sm.module_id, CONCAT('Introduction to ', cs.subject_title), 'text', NULL, 1
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
 WHERE sm.module_order = 1;
 
-INSERT INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
+INSERT IGNORE INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
 SELECT sm.module_id, CONCAT('Guided practice for ', cs.subject_title), 'text', NULL, 2
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
 WHERE sm.module_order = 1;
 
-INSERT INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
+INSERT IGNORE INTO module_lessons (module_id, title, content_type, content_url, lesson_order)
 SELECT sm.module_id, CONCAT('Applied lab: ', cs.subject_title), 'text', NULL, 1
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
 WHERE sm.module_order = 2;
 
-INSERT INTO module_tasks (module_id, title, task_type, points)
+INSERT IGNORE INTO module_tasks (module_id, title, task_type, points)
 SELECT sm.module_id, CONCAT(cs.subject_title, ' Checkpoint Quiz'), 'quiz', 25
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
 WHERE sm.module_order = 1;
 
-INSERT INTO module_tasks (module_id, title, task_type, points)
+INSERT IGNORE INTO module_tasks (module_id, title, task_type, points)
 SELECT sm.module_id, CONCAT(cs.subject_title, ' Applied Assignment'), 'assignment', 35
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id
 WHERE sm.module_order = 2;
 
-INSERT INTO module_tasks (module_id, title, task_type, points)
+INSERT IGNORE INTO module_tasks (module_id, title, task_type, points)
 SELECT sm.module_id, CONCAT(cs.subject_title, ' Portfolio Project'), 'project', 40
 FROM subject_modules sm
 JOIN career_subjects cs ON cs.subject_id = sm.subject_id

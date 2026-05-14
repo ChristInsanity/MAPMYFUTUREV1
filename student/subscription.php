@@ -146,6 +146,7 @@ const methodStep = document.getElementById('methodStep');
 const formStep = document.getElementById('formStep');
 const loadingStep = document.getElementById('loadingStep');
 const successStep = document.getElementById('successStep');
+const closePayment = document.getElementById('closePayment');
 const flowOrder = ['method', 'details', 'processing', 'success'];
 
 function setCheckoutStep(step) {
@@ -167,6 +168,8 @@ function resetPaymentFlow() {
     document.getElementById('bankFields').classList.add('hidden');
     document.getElementById('loadingBar').style.width = '0%';
     document.getElementById('paymentForm').reset();
+    closePayment.disabled = false;
+    closePayment.classList.remove('opacity-50', 'pointer-events-none');
     setCheckoutStep('method');
 }
 
@@ -179,7 +182,7 @@ document.querySelectorAll('.selectPlan').forEach(button => {
         modal.classList.remove('hidden');
     });
 });
-document.getElementById('closePayment').addEventListener('click', () => modal.classList.add('hidden'));
+closePayment.addEventListener('click', () => modal.classList.add('hidden'));
 
 document.querySelectorAll('.methodBtn').forEach(button => {
     button.addEventListener('click', () => {
@@ -198,22 +201,32 @@ document.getElementById('paymentForm').addEventListener('submit', async (event) 
     formStep.classList.add('hidden');
     loadingStep.classList.remove('hidden');
     setCheckoutStep('processing');
+    closePayment.disabled = true;
+    closePayment.classList.add('opacity-50', 'pointer-events-none');
     document.getElementById('loadingBar').style.width = '20%';
-    setTimeout(() => document.getElementById('loadingBar').style.width = '65%', 800);
-    setTimeout(() => document.getElementById('loadingBar').style.width = '100%', 1800);
+    setTimeout(() => document.getElementById('loadingBar').style.width = '65%', 1000);
+    setTimeout(() => document.getElementById('loadingBar').style.width = '100%', 2400);
 
-    setTimeout(async () => {
-        const result = await window.mmfPost('ajax_subscription.php', new FormData(event.currentTarget), true);
-        loadingStep.classList.add('hidden');
-        if (result.success) {
-            successStep.classList.remove('hidden');
-            setCheckoutStep('success');
-        } else {
-            alert(result.message || 'Unable to activate premium.');
-            formStep.classList.remove('hidden');
-            setCheckoutStep('details');
-        }
-    }, 2600);
+    const paymentRequest = window.mmfPost('ajax_subscription.php', new FormData(event.currentTarget), true)
+        .catch(() => ({success: false, message: 'Unable to activate premium. Please try again.'}));
+    const delay = new Promise(resolve => setTimeout(resolve, 3000));
+    const result = await Promise.race([
+        paymentRequest,
+        delay.then(() => ({success: false, message: 'Payment processing timed out. Please try again.'}))
+    ]);
+
+    await delay;
+    loadingStep.classList.add('hidden');
+    if (result.success) {
+        successStep.classList.remove('hidden');
+        setCheckoutStep('success');
+    } else {
+        alert(result.message || 'Unable to activate premium.');
+        closePayment.disabled = false;
+        closePayment.classList.remove('opacity-50', 'pointer-events-none');
+        formStep.classList.remove('hidden');
+        setCheckoutStep('details');
+    }
 });
 </script>
 

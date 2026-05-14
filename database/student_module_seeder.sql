@@ -14,83 +14,83 @@ industry = VALUES(industry),
 icon = VALUES(icon);
 
 INSERT INTO learning_paths (career_id, title, phase_order, description)
-SELECT career_id, 'Phase 1: Foundations', 1, 'Build the core vocabulary, tools, and habits needed for this career track.'
+SELECT path_id, 'Phase 1: Foundations', 1, 'Build the core vocabulary, tools, and habits needed for this career track.'
 FROM career_paths
 ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description);
 
 INSERT INTO learning_paths (career_id, title, phase_order, description)
-SELECT career_id, 'Phase 2: Projects', 2, 'Apply the fundamentals through hands-on portfolio work and guided practice.'
+SELECT path_id, 'Phase 2: Projects', 2, 'Apply the fundamentals through hands-on portfolio work and guided practice.'
 FROM career_paths
 ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description);
 
 INSERT INTO learning_paths (career_id, title, phase_order, description)
-SELECT career_id, 'Phase 3: Internship Preparation', 3, 'Prepare proof of skill, feedback loops, and career-ready artifacts.'
+SELECT path_id, 'Phase 3: Internship Preparation', 3, 'Prepare proof of skill, feedback loops, and career-ready artifacts.'
 FROM career_paths
 ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description);
 
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Learn design thinking and UX research basics', 'lesson', 80, 3
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'UX Foundations Quiz', 'quiz', 120, 1
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Create a wireframe and clickable prototype', 'project', 220, 8
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Submit prototype for mentor critique', 'mentor_review', 160, 2
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Accessibility and Usability Quiz', 'quiz', 120, 1
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 3;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'UI/UX Designer') AND phase_order = 3;
 
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Programming foundations with PHP and JavaScript', 'lesson', 100, 5
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Programming Logic Quiz', 'quiz', 120, 1
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Build a PHP and MySQL CRUD app', 'project', 260, 10
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Request mentor code review', 'mentor_review', 170, 2
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Deploy and document your application', 'certification', 180, 4
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 3;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Software Engineer') AND phase_order = 3;
 
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Learn spreadsheet, SQL, and data cleaning basics', 'lesson', 90, 4
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Data Literacy Quiz', 'quiz', 120, 1
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Build a student outcomes dashboard', 'project', 250, 8
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Submit dashboard for mentor insight review', 'mentor_review', 160, 2
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Publish an analytics case study', 'certification', 180, 4
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 3;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Data Analyst') AND phase_order = 3;
 
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Security fundamentals and threat vocabulary', 'lesson', 100, 5
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Security Foundations Quiz', 'quiz', 130, 1
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 1;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 1;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Create a threat model for a student app', 'project', 260, 8
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Submit security findings for mentor review', 'mentor_review', 170, 2
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 2;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 2;
 INSERT IGNORE INTO roadmap_tasks (path_id, title, task_type, points, estimated_hours)
 SELECT path_id, 'Prepare an entry-level security certification plan', 'certification', 190, 4
-FROM learning_paths WHERE career_id = (SELECT career_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 3;
+FROM learning_paths WHERE career_id = (SELECT path_id FROM career_paths WHERE title = 'Cybersecurity Analyst') AND phase_order = 3;
 
 INSERT INTO assessments (task_id, title, description, passing_score)
 SELECT task_id, title, 'Answer the checkpoint questions to unlock the next roadmap items.', 70
@@ -118,8 +118,8 @@ career_path = VALUES(career_path),
 target_industry = VALUES(target_industry),
 ai_summary = VALUES(ai_summary);
 
-INSERT INTO student_career_matches (user_id, career_id, match_percentage, current_progress, is_primary)
-SELECT u.user_id, c.career_id,
+INSERT INTO student_career_matches (user_id, path_id, match_percentage, current_progress, is_primary)
+SELECT u.user_id, c.path_id,
 CASE c.title
   WHEN 'UI/UX Designer' THEN 92
   WHEN 'Software Engineer' THEN 84
@@ -152,7 +152,7 @@ CASE
 END
 FROM users u
 JOIN career_paths c ON c.title = 'UI/UX Designer'
-JOIN learning_paths lp ON lp.career_id = c.career_id
+JOIN learning_paths lp ON lp.career_id = c.path_id
 JOIN roadmap_tasks rt ON rt.path_id = lp.path_id
 WHERE u.email = 'student@mapmyfuture.test'
 ON DUPLICATE KEY UPDATE status = VALUES(status), progress_percent = VALUES(progress_percent), completed_at = VALUES(completed_at);

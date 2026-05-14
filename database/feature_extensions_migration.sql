@@ -6,25 +6,33 @@ ALTER TABLE module_lessons
     MODIFY COLUMN content_type ENUM('video','pdf','text','article') NOT NULL;
 
 CREATE TABLE IF NOT EXISTS lesson_progress (
-    lesson_progress_id INT(11) NOT NULL AUTO_INCREMENT,
+    progress_id INT(11) NOT NULL AUTO_INCREMENT,
     user_id INT(11) NOT NULL,
     lesson_id INT(11) NOT NULL,
+    subject_id INT(11) NOT NULL,
+    status ENUM('completed') NOT NULL DEFAULT 'completed',
     completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (lesson_progress_id),
+    PRIMARY KEY (progress_id),
     UNIQUE KEY uq_lesson_progress_user_lesson (user_id, lesson_id),
+    KEY idx_lesson_progress_subject (subject_id),
     CONSTRAINT fk_lesson_progress_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_lesson_progress_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE
+    CONSTRAINT fk_lesson_progress_lesson FOREIGN KEY (lesson_id) REFERENCES module_lessons(lesson_id) ON DELETE CASCADE,
+    CONSTRAINT fk_lesson_progress_subject FOREIGN KEY (subject_id) REFERENCES career_subjects(subject_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS student_subscriptions (
     subscription_id INT(11) NOT NULL AUTO_INCREMENT,
     user_id INT(11) NOT NULL,
-    plan VARCHAR(100) NOT NULL,
+    plan VARCHAR(100) NOT NULL DEFAULT 'free',
+    plan_type VARCHAR(50) NOT NULL DEFAULT 'free',
+    amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    duration_months INT(11) NOT NULL DEFAULT 0,
     status ENUM('active','cancelled','expired') NOT NULL DEFAULT 'active',
+    payment_method VARCHAR(80) DEFAULT NULL,
     started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at DATETIME DEFAULT NULL,
     PRIMARY KEY (subscription_id),
-    KEY idx_student_subscriptions_user (user_id),
+    UNIQUE KEY uq_student_subscriptions_user (user_id),
     CONSTRAINT fk_student_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
