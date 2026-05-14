@@ -15,7 +15,7 @@ $plans = [
     'quarterly' => ['label' => '3 Months', 'amount' => 1299.00, 'months' => 3],
     'annual' => ['label' => 'Annual', 'amount' => 4499.00, 'months' => 12],
 ];
-$methods = ['GCash', 'Maya', 'Card'];
+$methods = ['GCash', 'Card', 'Bank'];
 
 $planType = sanitize($_POST['plan_type'] ?? '');
 $method = sanitize($_POST['payment_method'] ?? '');
@@ -24,9 +24,15 @@ if (!isset($plans[$planType]) || !in_array($method, $methods, true)) {
     jsonResponse(['success' => false, 'message' => 'Choose a valid plan and payment method.'], 422);
 }
 
-if (in_array($method, ['GCash', 'Maya'], true)) {
+if ($method === 'GCash') {
     if (sanitize($_POST['mobile_number'] ?? '') === '' || sanitize($_POST['account_name'] ?? '') === '') {
         jsonResponse(['success' => false, 'message' => 'Enter your mobile number and account name.'], 422);
+    }
+}
+
+if ($method === 'Bank') {
+    if (sanitize($_POST['bank_name'] ?? '') === '' || sanitize($_POST['account_number'] ?? '') === '' || sanitize($_POST['bank_account_name'] ?? '') === '') {
+        jsonResponse(['success' => false, 'message' => 'Enter bank name, account number, and account name.'], 422);
     }
 }
 

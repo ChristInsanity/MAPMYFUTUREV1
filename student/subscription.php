@@ -38,7 +38,7 @@ include '../header.php';
 <?php endif; ?>
 
 <div class="grid lg:grid-cols-3 gap-5 mb-8">
-    <?php foreach ($plans as $index => $plan): ?>
+    <?php foreach ($plans as $plan): ?>
         <article class="card <?= $plan['type'] === 'three_months' ? 'border-blue-500/60' : '' ?>">
             <div class="flex justify-between items-start gap-3 mb-5">
                 <h2 class="sectionTitle"><?= e($plan['name']) ?></h2>
@@ -63,13 +63,21 @@ include '../header.php';
 </div>
 
 <div id="paymentModal" class="hidden fixed inset-0 z-50 bg-black/70 px-4 py-8 overflow-y-auto">
-    <div class="max-w-xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
+    <div class="max-w-xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6 shadow-2xl shadow-black/40">
         <div class="flex justify-between items-center mb-5">
             <div>
                 <p class="text-blue-300 font-semibold">Payment simulation</p>
-                <h2 class="text-2xl font-bold"><span id="planName"></span> · &#8369;<span id="planAmount"></span></h2>
+                <h2 class="text-2xl font-bold"><span id="planName"></span> &middot; &#8369;<span id="planAmount"></span></h2>
             </div>
             <button id="closePayment" type="button" class="secondaryBtn px-3 py-2"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="grid grid-cols-5 gap-2 mb-6 text-xs font-bold text-center">
+            <span class="checkoutStep isDone">Plan</span>
+            <span class="checkoutStep isActive" data-step-dot="method">Method</span>
+            <span class="checkoutStep" data-step-dot="details">Details</span>
+            <span class="checkoutStep" data-step-dot="processing">Processing</span>
+            <span class="checkoutStep" data-step-dot="success">Success</span>
         </div>
 
         <form id="paymentForm" class="space-y-5">
@@ -77,11 +85,11 @@ include '../header.php';
             <input type="hidden" name="plan_type" id="planType">
 
             <div id="methodStep">
-                <p class="font-bold mb-3">Step 2 · Choose payment method</p>
+                <p class="font-bold mb-3">Step 2 &middot; Choose payment method</p>
                 <div class="grid grid-cols-3 gap-3">
-                    <?php foreach (['GCash', 'Maya', 'Card'] as $method): ?>
-                        <button type="button" class="methodBtn bg-[#020B24] border border-[#334155] rounded-xl p-4 hover:border-blue-500" data-method="<?= e($method) ?>">
-                            <i class="fa-solid <?= $method === 'Card' ? 'fa-credit-card' : 'fa-mobile-screen' ?> block text-blue-300 mb-2"></i>
+                    <?php foreach (['GCash', 'Card', 'Bank'] as $method): ?>
+                        <button type="button" class="methodBtn bg-[#020B24] border border-[#334155] rounded-xl p-4 hover:border-blue-500 transition text-left" data-method="<?= e($method) ?>">
+                            <i class="fa-solid <?= $method === 'Card' ? 'fa-credit-card' : ($method === 'Bank' ? 'fa-building-columns' : 'fa-mobile-screen') ?> block text-blue-300 mb-2"></i>
                             <?= e($method) ?>
                         </button>
                     <?php endforeach; ?>
@@ -90,10 +98,15 @@ include '../header.php';
             </div>
 
             <div id="formStep" class="hidden">
-                <p class="font-bold mb-3">Step 3 · Payment details</p>
+                <p class="font-bold mb-3">Step 3 &middot; Payment credentials</p>
                 <div id="walletFields" class="hidden grid gap-3">
                     <input name="mobile_number" class="inputStyle" placeholder="Mobile number">
                     <input name="account_name" class="inputStyle" placeholder="Account name">
+                </div>
+                <div id="bankFields" class="hidden grid gap-3">
+                    <input name="bank_name" class="inputStyle" placeholder="Bank name">
+                    <input name="account_number" class="inputStyle" placeholder="Account number">
+                    <input name="bank_account_name" class="inputStyle" placeholder="Account name">
                 </div>
                 <div id="cardFields" class="hidden grid gap-3">
                     <input name="card_number" class="inputStyle" placeholder="Card number">
@@ -102,26 +115,24 @@ include '../header.php';
                         <input name="cvv" class="inputStyle" placeholder="CVV">
                     </div>
                 </div>
-                <button type="button" id="confirmPayment" class="primaryBtn w-full mt-4">Confirm Payment</button>
-            </div>
-
-            <div id="confirmStep" class="hidden bg-[#020B24] border border-[#334155] rounded-xl p-4">
-                <p class="font-bold mb-2">Step 4 · Confirmation</p>
-                <p class="text-slate-400 mb-4">This is a simulation only. No real payment gateway will be contacted.</p>
-                <button type="submit" class="primaryBtn w-full">Start Processing</button>
+                <p class="text-slate-400 text-sm mt-3">Simulation only. No real payment gateway will be contacted.</p>
+                <button type="submit" id="confirmPayment" class="primaryBtn w-full mt-4">Start AI Processing</button>
             </div>
 
             <div id="loadingStep" class="hidden text-center py-8">
-                <p class="font-bold mb-4">Step 5 · Processing</p>
+                <div class="w-14 h-14 rounded-2xl bg-blue-600 mx-auto flex items-center justify-center mb-4 shadow-lg shadow-blue-600/30">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <p class="font-bold mb-4">Step 4 &middot; Processing payment</p>
                 <div class="bg-slate-950 h-3 rounded-full overflow-hidden mb-4">
                     <div id="loadingBar" class="h-full bg-blue-500 w-0 transition-all duration-500"></div>
                 </div>
-                <p class="text-slate-400">Simulating secure payment...</p>
+                <p class="text-slate-400">Simulating secure activation...</p>
             </div>
 
             <div id="successStep" class="hidden text-center py-8">
                 <i class="fa-solid fa-circle-check text-5xl text-green-300 mb-4"></i>
-                <h2 class="text-2xl font-bold mb-2">Premium Activated</h2>
+                <h2 class="text-2xl font-bold mb-2">Premium activated successfully.</h2>
                 <p class="text-slate-400 mb-5">Mentor access and premium learning are now active.</p>
                 <a href="dashboard.php" class="primaryBtn">Back to Dashboard</a>
             </div>
@@ -131,8 +142,37 @@ include '../header.php';
 
 <script>
 const modal = document.getElementById('paymentModal');
+const methodStep = document.getElementById('methodStep');
+const formStep = document.getElementById('formStep');
+const loadingStep = document.getElementById('loadingStep');
+const successStep = document.getElementById('successStep');
+const flowOrder = ['method', 'details', 'processing', 'success'];
+
+function setCheckoutStep(step) {
+    const activeIndex = flowOrder.indexOf(step);
+    document.querySelectorAll('[data-step-dot]').forEach(dot => {
+        const dotIndex = flowOrder.indexOf(dot.dataset.stepDot);
+        dot.classList.toggle('isActive', dot.dataset.stepDot === step);
+        dot.classList.toggle('isDone', dotIndex >= 0 && dotIndex < activeIndex);
+    });
+}
+
+function resetPaymentFlow() {
+    methodStep.classList.remove('hidden');
+    formStep.classList.add('hidden');
+    loadingStep.classList.add('hidden');
+    successStep.classList.add('hidden');
+    document.getElementById('walletFields').classList.add('hidden');
+    document.getElementById('cardFields').classList.add('hidden');
+    document.getElementById('bankFields').classList.add('hidden');
+    document.getElementById('loadingBar').style.width = '0%';
+    document.getElementById('paymentForm').reset();
+    setCheckoutStep('method');
+}
+
 document.querySelectorAll('.selectPlan').forEach(button => {
     button.addEventListener('click', () => {
+        resetPaymentFlow();
         document.getElementById('planType').value = button.dataset.plan;
         document.getElementById('planName').textContent = button.dataset.name;
         document.getElementById('planAmount').textContent = Number(button.dataset.amount).toLocaleString();
@@ -144,37 +184,44 @@ document.getElementById('closePayment').addEventListener('click', () => modal.cl
 document.querySelectorAll('.methodBtn').forEach(button => {
     button.addEventListener('click', () => {
         document.getElementById('paymentMethod').value = button.dataset.method;
-        document.getElementById('methodStep').classList.add('hidden');
-        document.getElementById('formStep').classList.remove('hidden');
-        document.getElementById('walletFields').classList.toggle('hidden', button.dataset.method === 'Card');
+        methodStep.classList.add('hidden');
+        formStep.classList.remove('hidden');
+        document.getElementById('walletFields').classList.toggle('hidden', button.dataset.method !== 'GCash');
         document.getElementById('cardFields').classList.toggle('hidden', button.dataset.method !== 'Card');
+        document.getElementById('bankFields').classList.toggle('hidden', button.dataset.method !== 'Bank');
+        setCheckoutStep('details');
     });
-});
-
-document.getElementById('confirmPayment').addEventListener('click', () => {
-    document.getElementById('formStep').classList.add('hidden');
-    document.getElementById('confirmStep').classList.remove('hidden');
 });
 
 document.getElementById('paymentForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    document.getElementById('confirmStep').classList.add('hidden');
-    document.getElementById('loadingStep').classList.remove('hidden');
+    formStep.classList.add('hidden');
+    loadingStep.classList.remove('hidden');
+    setCheckoutStep('processing');
     document.getElementById('loadingBar').style.width = '20%';
     setTimeout(() => document.getElementById('loadingBar').style.width = '65%', 800);
     setTimeout(() => document.getElementById('loadingBar').style.width = '100%', 1800);
 
     setTimeout(async () => {
         const result = await window.mmfPost('ajax_subscription.php', new FormData(event.currentTarget), true);
-        document.getElementById('loadingStep').classList.add('hidden');
+        loadingStep.classList.add('hidden');
         if (result.success) {
-            document.getElementById('successStep').classList.remove('hidden');
+            successStep.classList.remove('hidden');
+            setCheckoutStep('success');
         } else {
             alert(result.message || 'Unable to activate premium.');
-            document.getElementById('formStep').classList.remove('hidden');
+            formStep.classList.remove('hidden');
+            setCheckoutStep('details');
         }
     }, 2600);
 });
 </script>
+
+<style>
+    .checkoutStep{border:1px solid #334155;background:#020B24;color:#64748b;border-radius:999px;padding:7px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .checkoutStep.isActive{border-color:#3B82F6;background:rgba(59,130,246,.14);color:#bfdbfe;}
+    .checkoutStep.isDone{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.09);color:#bbf7d0;}
+    @media (max-width:520px){.checkoutStep{font-size:10px;padding:6px 4px;}}
+</style>
 
 <?php include '../footer.php'; ?>

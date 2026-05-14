@@ -74,7 +74,6 @@ if ($inAdminDir) {
         'skill_gap' => ['Skill Gap', $studentPrefix . 'skill_gap.php', 'fa-bolt'],
         'mentors' => ['Mentors', $studentPrefix . 'find_mentors.php', 'fa-users'],
         'subscription' => ['Premium', $studentPrefix . 'subscription.php', 'fa-crown'],
-        'portfolio' => ['Portfolio', $studentPrefix . 'portfolio.php', 'fa-folder-open'],
         'jobs' => ['Job Market', $studentPrefix . 'job_market.php', 'fa-briefcase'],
         'mentor_tasks' => ['Tasks', $studentPrefix . 'mentor_tasks.php', 'fa-list-check'],
     ];
@@ -103,9 +102,8 @@ if ($role === 'student') {
 
 $profileMenuItems = [
     ['Profile', 'fa-user', $profileUrl, $activePage === 'profile'],
-    ['Account Settings', 'fa-gear', $profileUrl, $activePage === 'profile'],
+    ['Settings', 'fa-gear', $profileUrl, $activePage === 'profile'],
     ['My Portfolio', 'fa-folder-open', $portfolioUrl, $activePage === 'portfolio'],
-    ['Premium', 'fa-crown', $premiumUrl, $activePage === 'subscription'],
 ];
 ?>
 <!DOCTYPE html>
@@ -119,17 +117,17 @@ $profileMenuItems = [
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         body{background:#020B24;color:#fff;}
-        .card,.statCard{background:#162338;border:1px solid #334155;padding:24px;border-radius:20px;}
+        .card,.statCard{background:#162338;border:1px solid #334155;padding:24px;border-radius:16px;}
         .sectionTitle{font-size:24px;font-weight:700;}
-        .navBtn,.navActive{display:inline-flex;min-height:44px;gap:9px;align-items:center;justify-content:center;padding:10px 13px;border-radius:14px;white-space:nowrap;transition:.2s;font-size:14px;}
-        .navActive{color:#bfdbfe;background:#1e3a8a;border:1px solid rgba(59,130,246,.45);}
+        .navBtn,.navActive{display:inline-flex;min-height:38px;gap:7px;align-items:center;justify-content:center;padding:8px 11px;border-radius:12px;white-space:nowrap;transition:.2s;font-size:13px;font-weight:700;}
+        .navActive{color:#dbeafe;background:rgba(37,99,235,.22);border:1px solid rgba(59,130,246,.42);}
         .navBtn{color:#cbd5e1;border:1px solid transparent;}
         .navBtn:hover{color:#93c5fd;background:#162338;border-color:#334155;}
         .topShell{position:sticky;top:0;z-index:50;background:rgba(2,11,36,.96);backdrop-filter:blur(14px);border-bottom:1px solid #334155;}
-        .mobileMenu{position:absolute;left:1rem;right:1rem;top:calc(100% + .5rem);background:#162338;border:1px solid #334155;border-radius:18px;padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.35);}
+        .mobileMenu{position:absolute;left:1rem;right:1rem;top:calc(100% + .5rem);background:#162338;border:1px solid #334155;border-radius:14px;padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.35);}
         .navScroller{display:flex;gap:6px;overflow-x:auto;scroll-behavior:smooth;scrollbar-width:none;-ms-overflow-style:none;max-width:100%;}
         .navScroller::-webkit-scrollbar{display:none;}
-        .navArrow{width:38px;min-width:38px;height:44px;border-radius:14px;background:#162338;border:1px solid #334155;color:#bfdbfe;display:inline-flex;align-items:center;justify-content:center;transition:.2s;}
+        .navArrow{width:36px;min-width:36px;height:38px;border-radius:12px;background:#162338;border:1px solid #334155;color:#bfdbfe;display:inline-flex;align-items:center;justify-content:center;transition:.2s;}
         .navArrow:hover{border-color:#3B82F6;background:#1e293b;}
         .quickBtn,.actionRow{display:flex;align-items:center;gap:12px;padding:16px;background:#162338;border:1px solid #334155;border-radius:16px;transition:.2s;}
         .quickBtn:hover,.actionRow:hover{background:#1e293b;border-color:#475569;}
@@ -145,7 +143,7 @@ $profileMenuItems = [
         .avatar{width:40px;height:40px;border-radius:999px;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-weight:800;overflow:hidden;position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);}
         .avatar img{width:100%;height:100%;object-fit:cover;}
         .profileDropdown{position:relative;}
-        .profileTrigger{min-height:48px;display:inline-flex;align-items:center;gap:10px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.7);border-radius:999px;padding:5px 10px 5px 5px;color:#e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,.18);transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;}
+        .profileTrigger{min-height:42px;display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(148,163,184,.24);background:rgba(15,23,42,.78);border-radius:14px;padding:4px 10px 4px 4px;color:#e2e8f0;box-shadow:0 10px 26px rgba(0,0,0,.18);transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;}
         .profileTrigger:hover,.profileTrigger:focus-visible{transform:translateY(-1px);border-color:rgba(59,130,246,.55);background:rgba(30,41,59,.88);box-shadow:0 14px 34px rgba(0,0,0,.26),0 0 0 3px rgba(59,130,246,.12);outline:none;}
         .profileTrigger:hover .avatar,.profileTrigger:focus-visible .avatar{transform:scale(1.04);}
         .profileTrigger .avatar{transition:transform .18s ease;}
@@ -153,15 +151,15 @@ $profileMenuItems = [
         .profileChevron{font-size:12px;color:#93c5fd;transition:transform .2s ease;}
         .profileDropdown.isOpen .profileChevron{transform:rotate(180deg);}
         .statusDot{position:absolute;right:1px;bottom:1px;width:11px;height:11px;border-radius:999px;background:#22c55e;border:2px solid #0f172a;box-shadow:0 0 0 2px rgba(34,197,94,.15);}
-        .profileMenu{position:absolute;right:0;top:calc(100% + 12px);width:min(330px,calc(100vw - 2rem));padding:10px;border-radius:18px;background:rgba(15,23,42,.92);border:1px solid rgba(148,163,184,.2);box-shadow:0 24px 60px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.03);backdrop-filter:blur(18px);opacity:0;transform:translateY(-8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:80;}
+        .profileMenu{position:absolute;right:0;top:calc(100% + 10px);width:min(310px,calc(100vw - 2rem));padding:8px;border-radius:14px;background:rgba(15,23,42,.96);border:1px solid rgba(148,163,184,.22);box-shadow:0 22px 54px rgba(0,0,0,.46),0 0 0 1px rgba(255,255,255,.04);backdrop-filter:blur(18px);opacity:0;transform:translateY(-8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:80;}
         .profileDropdown.isOpen .profileMenu{opacity:1;transform:translateY(0);pointer-events:auto;}
         .profileMenuHeader{display:flex;align-items:center;gap:13px;padding:12px 12px 14px;border-bottom:1px solid rgba(148,163,184,.16);margin-bottom:8px;}
         .profileMenuHeader .avatar{width:54px;height:54px;font-size:20px;flex:0 0 auto;}
         .profileMenuName{font-weight:800;color:#f8fafc;line-height:1.25;}
         .profileMenuRole{color:#93c5fd;font-size:13px;font-weight:700;margin-top:3px;}
         .profileMenuList{display:grid;gap:4px;}
-        .profileMenuItem{min-height:44px;display:flex;align-items:center;gap:11px;border-radius:12px;padding:10px 12px;color:#cbd5e1;font-weight:700;transition:background .16s ease,color .16s ease,transform .16s ease;}
-        .profileMenuItem i{width:18px;text-align:center;color:#93c5fd;}
+        .profileMenuItem{min-height:40px;display:flex;align-items:center;gap:10px;border-radius:12px;padding:9px 10px;color:#cbd5e1;font-weight:700;transition:background .16s ease,color .16s ease,transform .16s ease;}
+        .profileMenuItem i{width:18px;text-align:center;color:#93c5fd;font-size:14px;}
         .profileMenuItem:hover,.profileMenuItem:focus-visible{background:rgba(59,130,246,.12);color:#f8fafc;outline:none;}
         .profileMenuItem.isActive{background:rgba(59,130,246,.18);color:#bfdbfe;}
         .profileMenuItem.isDisabled{color:#64748b;cursor:not-allowed;}
@@ -179,7 +177,7 @@ $profileMenuItems = [
         .masonryCards>*{break-inside:avoid;margin-bottom:1.25rem;}
         @media (min-width:768px){.masonryCards{columns:2;}}
         @media (min-width:1280px){.masonryCards{columns:3;}}
-        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}.mobileMenu .profileDropdown{width:100%;}.mobileMenu .profileTrigger{width:100%;justify-content:space-between;border-radius:16px;padding:6px 12px 6px 6px;}.mobileMenu .profileMenu{position:static;width:100%;margin-top:10px;transform:translateY(-4px);}.mobileMenu .profileDropdown.isOpen .profileMenu{transform:translateY(0);}}
+        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}.mobileMenu .profileDropdown{width:100%;}.mobileMenu .profileTrigger{width:100%;justify-content:space-between;border-radius:14px;padding:6px 12px 6px 6px;}.mobileMenu .profileMenu{position:static;width:100%;margin-top:10px;transform:translateY(-4px);}.mobileMenu .profileDropdown.isOpen .profileMenu{transform:translateY(0);}}
         @media (max-width: 480px){.profileName{display:none;}.profileMenu{right:auto;left:50%;transform:translate(-50%,-8px);}.profileDropdown.isOpen .profileMenu{transform:translate(-50%,0);}.mobileMenu .profileMenu,.mobileMenu .profileDropdown.isOpen .profileMenu{transform:none;}}
     </style>
 </head>

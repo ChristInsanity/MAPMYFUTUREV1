@@ -41,16 +41,11 @@ $steps = [
             <div class="aiOrb mx-auto">
                 <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
             </div>
-            <p class="text-blue-300 font-semibold mb-2">AI roadmap generation</p>
             <h1 class="text-3xl lg:text-4xl font-bold mb-3">Building your future map</h1>
-            <p class="text-slate-400 max-w-lg mx-auto leading-7">
-                Personalizing your <?= e($profile['career_path']) ?> roadmap with subjects, milestones, and readiness signals.
-            </p>
         </div>
 
         <div class="processingBlock">
-            <div class="flex items-end justify-between gap-4 mb-3">
-                <p class="text-sm font-semibold text-slate-300">Processing</p>
+            <div class="flex items-end justify-end gap-4 mb-3">
                 <span id="progressText" class="text-2xl font-bold text-blue-200">0%</span>
             </div>
 

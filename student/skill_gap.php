@@ -64,63 +64,97 @@ include '../header.php';
     </div>
 </div>
 
-<div class="masonryCards mb-8">
-    <section class="card">
-        <h2 class="sectionTitle mb-5">Completed</h2>
-        <div class="space-y-3">
-            <?php foreach ($completedSkills as $task): ?>
-                <div class="actionRow">
-                    <i class="fa-solid <?= e(taskIcon($task['task_type'])) ?> text-green-400"></i>
-                    <div>
-                        <p class="font-semibold"><?= e($task['task_title']) ?></p>
-                        <p class="text-slate-400 text-sm"><?= e($task['points']) ?> XP earned</p>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-            <?php if (count($completedSkills) === 0): ?>
-                <p class="text-slate-400">Complete your first roadmap task to build this list.</p>
-            <?php endif; ?>
+<section class="card mb-8">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-6">
+        <div>
+            <h2 class="sectionTitle mb-1">Skill Cards</h2>
+            <p class="text-slate-400">Compact view of completed, active, and upcoming readiness work.</p>
         </div>
-    </section>
+        <a href="roadmap.php" class="secondaryBtn self-start md:self-auto px-4 py-2 text-sm">
+            <i class="fa-solid fa-route"></i>
+            Open Roadmap
+        </a>
+    </div>
 
-    <section class="card">
-        <h2 class="sectionTitle mb-5">Missing</h2>
-        <div class="space-y-3">
-            <?php foreach ($missingSkills as $task): ?>
-                <a href="roadmap.php" class="actionRow">
-                    <i class="fa-solid <?= e(taskIcon($task['task_type'])) ?> text-yellow-400"></i>
-                    <div class="flex-1">
-                        <p class="font-semibold"><?= e($task['task_title']) ?></p>
-                        <div class="mt-2 bg-slate-950 h-2 rounded-full overflow-hidden">
-                            <div class="h-full bg-yellow-400" style="width:<?= (int)$task['progress_percent'] ?>%"></div>
-                        </div>
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <?php foreach ($completedSkills as $task): ?>
+            <article class="skillCard">
+                <div class="flex items-start justify-between gap-3 mb-4">
+                    <div class="skillIcon bg-green-500/10 text-green-300 border-green-500/25">
+                        <i class="fa-solid <?= e(taskIcon($task['task_type'])) ?>"></i>
                     </div>
-                </a>
-            <?php endforeach; ?>
-            <?php if (count($missingSkills) === 0): ?>
-                <p class="text-slate-400">No active skill gaps right now.</p>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <section class="card">
-        <h2 class="sectionTitle mb-5">Locked</h2>
-        <div class="space-y-3">
-            <?php foreach ($lockedSkills as $task): ?>
-                <div class="actionRow opacity-70">
-                    <i class="fa-solid fa-lock text-slate-500"></i>
-                    <div>
-                        <p class="font-semibold"><?= e($task['task_title']) ?></p>
-                        <p class="text-slate-500 text-sm"><?= e($task['phase_title']) ?></p>
-                    </div>
+                    <span class="skillPill text-green-200 border-green-500/30 bg-green-500/10">Complete</span>
                 </div>
-            <?php endforeach; ?>
-            <?php if (count($lockedSkills) === 0): ?>
-                <p class="text-slate-400">No locked skills remain.</p>
-            <?php endif; ?>
-        </div>
-    </section>
-</div>
+                <h3 class="font-bold leading-6 mb-3"><?= e($task['task_title']) ?></h3>
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-slate-400">Proficiency</span>
+                    <strong class="text-green-200">100%</strong>
+                </div>
+                <div class="skillBar"><span class="bg-green-400" style="width:100%"></span></div>
+                <div class="mt-4 flex items-center justify-between gap-3 text-sm">
+                    <span class="text-slate-400"><i class="fa-solid fa-arrow-trend-up mr-1 text-green-300"></i><?= e($task['points']) ?> XP earned</span>
+                    <span class="text-green-200 font-bold">Done</span>
+                </div>
+            </article>
+        <?php endforeach; ?>
+
+        <?php foreach ($missingSkills as $task): ?>
+            <?php $taskProgress = (int)$task['progress_percent']; ?>
+            <a href="roadmap.php" class="skillCard hover:border-yellow-400/60">
+                <div class="flex items-start justify-between gap-3 mb-4">
+                    <div class="skillIcon bg-yellow-500/10 text-yellow-300 border-yellow-500/25">
+                        <i class="fa-solid <?= e(taskIcon($task['task_type'])) ?>"></i>
+                    </div>
+                    <span class="skillPill text-yellow-200 border-yellow-500/30 bg-yellow-500/10"><?= e(readableStatus($task['status'])) ?></span>
+                </div>
+                <h3 class="font-bold leading-6 mb-3"><?= e($task['task_title']) ?></h3>
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-slate-400">Proficiency</span>
+                    <strong class="text-yellow-200"><?= $taskProgress ?>%</strong>
+                </div>
+                <div class="skillBar"><span class="bg-yellow-400" style="width:<?= $taskProgress ?>%"></span></div>
+                <div class="mt-4 flex items-center justify-between gap-3 text-sm">
+                    <span class="text-slate-400"><i class="fa-solid fa-arrow-trend-up mr-1 text-yellow-300"></i><?= 100 - $taskProgress ?>% to close</span>
+                    <span class="text-yellow-200 font-bold">Continue</span>
+                </div>
+            </a>
+        <?php endforeach; ?>
+
+        <?php foreach ($lockedSkills as $task): ?>
+            <article class="skillCard opacity-75">
+                <div class="flex items-start justify-between gap-3 mb-4">
+                    <div class="skillIcon bg-slate-500/10 text-slate-400 border-slate-500/25">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <span class="skillPill text-slate-300 border-slate-600 bg-slate-800/70">Locked</span>
+                </div>
+                <h3 class="font-bold leading-6 mb-3"><?= e($task['task_title']) ?></h3>
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-slate-400">Proficiency</span>
+                    <strong class="text-slate-300">0%</strong>
+                </div>
+                <div class="skillBar"><span class="bg-slate-500" style="width:0%"></span></div>
+                <div class="mt-4 flex items-center justify-between gap-3 text-sm">
+                    <span class="text-slate-500"><i class="fa-solid fa-layer-group mr-1"></i><?= e($task['phase_title']) ?></span>
+                    <span class="text-slate-400 font-bold">Unlock later</span>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    </div>
+
+    <?php if (count($completedSkills) + count($missingSkills) + count($lockedSkills) === 0): ?>
+        <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4 text-slate-400">No roadmap skills are available yet.</div>
+    <?php endif; ?>
+</section>
+
+<style>
+    .skillCard{display:block;background:#020B24;border:1px solid #334155;border-radius:14px;padding:16px;transition:border-color .18s ease,background .18s ease,transform .18s ease;}
+    .skillCard:hover{background:#0f172a;transform:translateY(-1px);}
+    .skillIcon{width:42px;height:42px;border-radius:12px;border:1px solid;display:flex;align-items:center;justify-content:center;font-size:17px;}
+    .skillPill{display:inline-flex;align-items:center;border:1px solid;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;white-space:nowrap;}
+    .skillBar{height:7px;background:#0f172a;border:1px solid #1e293b;border-radius:999px;overflow:hidden;}
+    .skillBar span{display:block;height:100%;border-radius:999px;}
+</style>
 
 <section class="space-y-4">
     <h2 class="sectionTitle">Phase Progress</h2>
