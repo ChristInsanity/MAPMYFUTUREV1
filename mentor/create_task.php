@@ -38,7 +38,7 @@ include '../header.php';
 
 <div id="taskMessage" class="hidden mb-6 rounded-2xl border p-4"></div>
 
-<form id="mentorTaskForm" method="POST" class="card space-y-5">
+<form id="mentorTaskForm" method="POST" enctype="multipart/form-data" class="card space-y-5">
     <?= csrf_input() ?>
     <input type="hidden" name="student_id" value="0">
     <div class="grid lg:grid-cols-3 gap-4">
@@ -97,6 +97,10 @@ include '../header.php';
     <input name="title" class="inputStyle" placeholder="Task title" required>
     <textarea name="instructions" class="inputStyle min-h-[160px]" placeholder="Instructions" required></textarea>
     <textarea name="resources" class="inputStyle min-h-[120px]" placeholder="Resources, links, or reading notes"></textarea>
+    <label>
+        <span class="text-slate-400">Attachment</span>
+        <input type="file" name="attachment_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip" class="inputStyle mt-2 text-sm">
+    </label>
 
     <div class="grid sm:grid-cols-2 gap-4">
         <input type="date" name="deadline" class="inputStyle">

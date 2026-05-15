@@ -27,6 +27,11 @@ include '../header.php';
     <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($profile['career_path'] ?? 'Career') ?> mentors</h1>
 </div>
 
+<div class="card mb-6">
+    <label class="block text-sm text-slate-400 mb-2">Search mentors</label>
+    <input id="mentorSearch" class="inputStyle" placeholder="Search by name, specialization, industry, or career expertise">
+</div>
+
 <?php if (!$premium): ?>
 <div class="card mb-8 border-yellow-500/40">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -44,8 +49,17 @@ include '../header.php';
         <?php
         $requestStatus = $mentor['request_status'] ?? '';
         $portfolioLink = $mentor['portfolio_url'] ?: ($mentor['github_url'] ?: ($mentor['linkedin_url'] ?: ''));
+        $capacity = max(1, (int)($mentor['max_student_capacity'] ?? 10));
+        $activeStudents = (int)$mentor['total_students'];
+        $isAvailable = $activeStudents < $capacity;
+        $searchText = strtolower(implode(' ', [
+            $mentor['full_name'] ?? '',
+            $mentor['specialization'] ?? '',
+            $mentor['industry'] ?? '',
+            $mentor['assigned_careers'] ?? ''
+        ]));
         ?>
-        <article class="card flex flex-col mentorCard" data-mentor-id="<?= (int)$mentor['user_id'] ?>">
+        <article class="card flex flex-col mentorCard" data-mentor-id="<?= (int)$mentor['user_id'] ?>" data-search="<?= e($searchText) ?>">
             <div class="flex items-start gap-4 mb-5">
                 <div class="w-16 h-16 rounded-full bg-blue-600 overflow-hidden flex items-center justify-center text-2xl font-bold shrink-0">
                     <?php if (!empty($mentor['profile_photo'])): ?>
@@ -59,7 +73,10 @@ include '../header.php';
                     <p class="text-slate-400 text-sm truncate"><?= e($mentor['email']) ?></p>
                     <div class="mt-2 flex flex-wrap gap-2">
                         <span class="badge text-green-200 border-green-500/30 bg-green-500/10"><i class="fa-solid fa-circle-check"></i> Career match</span>
-                        <span class="badge text-blue-200 border-blue-500/30 bg-blue-500/10"><?= (int)$mentor['total_students'] ?> students</span>
+                        <?php if ((int)($mentor['is_premium_mentor'] ?? 0) === 1): ?><span class="badge text-yellow-200 border-yellow-500/30 bg-yellow-500/10"><i class="fa-solid fa-crown"></i> Premium</span><?php endif; ?>
+                        <span class="badge <?= $isAvailable ? 'text-blue-200 border-blue-500/30 bg-blue-500/10' : 'text-slate-300 border-slate-500/30 bg-slate-500/10' ?>">
+                            <?= $activeStudents ?>/<?= $capacity ?> students
+                        </span>
                     </div>
                 </div>
             </div>
@@ -69,6 +86,11 @@ include '../header.php';
                 <p><span class="text-slate-500">Industry:</span> <?= e($mentor['industry'] ?: 'Not specified') ?></p>
                 <p><span class="text-slate-500">Experience:</span> <?= (int)($mentor['years_experience'] ?? 0) ?> years</p>
                 <p><span class="text-slate-500">Mentorship careers:</span> <?= e($mentor['assigned_careers']) ?></p>
+                <div class="flex flex-wrap gap-2">
+                    <?php foreach (array_filter(array_map('trim', explode(',', (string)$mentor['assigned_careers']))) as $tag): ?>
+                        <span class="badge text-cyan-200 border-cyan-500/30 bg-cyan-500/10"><?= e($tag) ?></span>
+                    <?php endforeach; ?>
+                </div>
                 <div class="bg-[#020B24] border border-[#334155] rounded-xl p-3">
                     <p class="text-slate-400 text-xs uppercase tracking-wide mb-1">Portfolio Preview</p>
                     <?php if ($portfolioLink): ?>
@@ -86,7 +108,11 @@ include '../header.php';
                         <?= e(readableStatus($requestStatus)) ?>
                     </span>
                 <?php else: ?>
-                    <button type="button" class="primaryBtn px-3 py-2 text-sm enrollBtn" data-mentor-id="<?= (int)$mentor['user_id'] ?>">Request</button>
+                    <?php if ($isAvailable): ?>
+                        <button type="button" class="primaryBtn px-3 py-2 text-sm enrollBtn" data-mentor-id="<?= (int)$mentor['user_id'] ?>">Request</button>
+                    <?php else: ?>
+                        <span class="badge justify-center text-slate-300 border-slate-500/30 bg-slate-500/10">Unavailable</span>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </article>
@@ -113,6 +139,14 @@ include '../header.php';
 
 <script>
 const upgradeModal = document.getElementById('upgradeModal');
+const mentorSearch = document.getElementById('mentorSearch');
+mentorSearch?.addEventListener('input', () => {
+    const query = mentorSearch.value.trim().toLowerCase();
+    document.querySelectorAll('.mentorCard').forEach(card => {
+        card.classList.toggle('hidden', query && !card.dataset.search.includes(query));
+    });
+});
+
 document.querySelectorAll('[data-open-upgrade]').forEach(button => {
     button.addEventListener('click', () => upgradeModal.classList.remove('hidden'));
 });
