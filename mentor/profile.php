@@ -31,7 +31,7 @@ $careers = getMentorCareerAssignments($conn, $mentorId);
 $portfolioItems = getMentorPortfolioItems($conn, $mentorId);
 
 $pageTitle = 'Mentor Profile';
-$activePage = $isOwner ? 'profile' : 'mentors';
+$activePage = $isOwner ? 'profile' : (($_SESSION['role'] ?? '') === 'student' ? 'find_mentor' : 'mentors');
 $backUrl = ($_SESSION['role'] ?? '') === 'student' ? '../student/find_mentors.php' : 'dashboard.php';
 $backLabel = 'Back';
 include '../header.php';

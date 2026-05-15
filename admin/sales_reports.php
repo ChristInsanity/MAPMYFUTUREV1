@@ -6,19 +6,17 @@ requireAdmin();
 
 $initial = getSalesReportData($conn);
 
-$pageTitle = 'Sales Reports';
-$activePage = 'sales';
+$pageTitle = 'Subscription Reports';
+$activePage = 'subscriptions';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => 'dashboard.php'],
-    ['label' => 'Sales Reports']
+    ['label' => 'Subscription Reports']
 ];
 include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Admin analytics</p>
-    <h1 class="text-3xl lg:text-4xl font-bold mb-2">Sales Reports</h1>
-    <p class="text-slate-400">Premium revenue, plan mix, active subscribers, and mentor enrollment performance.</p>
+    <h1 class="text-3xl lg:text-4xl font-bold mb-2">Subscription Reports</h1>
 </div>
 
 <div id="salesCards" class="grid sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">

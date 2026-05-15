@@ -23,9 +23,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Student management</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Mentor Students</h1>
-    <p class="text-slate-400">Manage active learners, pending requests, and task assignments from existing roadmap lessons.</p>
 </div>
 
 <div class="flex flex-wrap gap-3 mb-6">
@@ -41,16 +39,29 @@ include '../header.php';
                 <div>
                     <h2 class="text-xl font-bold"><?= e($student['full_name']) ?></h2>
                     <p class="text-slate-400"><?= e($student['career_path'] ?: 'Career not set') ?></p>
+                    <p class="text-sm text-blue-200 mt-1">
+                        <?= $student['year_number'] && $student['semester_number'] ? 'Year ' . (int)$student['year_number'] . ' - Semester ' . (int)$student['semester_number'] : 'Year/semester not set' ?>
+                    </p>
                 </div>
                 <span class="badge text-blue-300 border-blue-500/30 bg-blue-500/10"><?= (int)$student['readiness_score'] ?>%</span>
             </div>
-            <div class="bg-slate-950 h-2 rounded-full overflow-hidden mb-4">
+            <div class="bg-slate-950 h-2 rounded-full overflow-hidden mb-3">
                 <div class="h-full bg-blue-500" style="width:<?= (int)$student['readiness_score'] ?>%"></div>
+            </div>
+            <div class="bg-[#020B24] border border-[#334155] rounded-xl p-3 mb-4">
+                <div class="flex justify-between gap-3 text-sm mb-2">
+                    <span class="text-slate-400"><?= e($student['subject_code'] ?: 'Current subject') ?></span>
+                    <span class="font-bold text-blue-200"><?= (int)$student['roadmap_progress'] ?>%</span>
+                </div>
+                <div class="bg-slate-900 h-2 rounded-full overflow-hidden">
+                    <div class="h-full bg-green-500" style="width:<?= (int)$student['roadmap_progress'] ?>%"></div>
+                </div>
+                <p class="text-xs text-slate-500 mt-2"><?= e($student['subject_title'] ?: 'Roadmap progress') ?></p>
             </div>
             <p class="text-slate-500 text-sm mb-4">Latest activity: <?= $student['latest_activity'] ? e(date('M d, Y', strtotime($student['latest_activity']))) : 'No activity yet' ?></p>
             <div class="grid grid-cols-3 gap-2">
                 <a href="review_submission.php?student_id=<?= (int)$student['student_id'] ?>" class="secondaryBtn px-3 py-2 text-sm">Open</a>
-                <button type="button" class="primaryBtn px-3 py-2 text-sm assignBtn" data-student-id="<?= (int)$student['student_id'] ?>" data-student-name="<?= e($student['full_name']) ?>">Assign</button>
+                <button type="button" class="primaryBtn px-3 py-2 text-sm assignBtn" data-student-id="<?= (int)$student['student_id'] ?>" data-student-name="<?= e($student['full_name']) ?>" data-subject-id="<?= (int)$student['subject_id'] ?>">Assign</button>
                 <a href="review_submission.php?student_id=<?= (int)$student['student_id'] ?>" class="secondaryBtn px-3 py-2 text-sm">Review</a>
             </div>
         </article>
@@ -129,15 +140,23 @@ document.querySelectorAll('.tabBtn').forEach(button => {
 });
 
 const assignModal = document.getElementById('assignModal');
+const lessonBundle = document.getElementById('lessonBundle');
 document.querySelectorAll('.assignBtn').forEach(button => {
     button.addEventListener('click', () => {
         document.getElementById('assignStudentId').value = button.dataset.studentId;
         document.getElementById('assignStudentName').textContent = button.dataset.studentName;
+        lessonBundle.value = '';
+        document.getElementById('pathId').value = '';
+        document.getElementById('subjectId').value = '';
+        document.getElementById('lessonId').value = '';
+        lessonBundle.querySelectorAll('option[data-student-filter]').forEach(option => {
+            option.hidden = button.dataset.subjectId && option.dataset.studentFilter !== button.dataset.subjectId;
+        });
         assignModal.classList.remove('hidden');
     });
 });
 document.getElementById('closeAssign').addEventListener('click', () => assignModal.classList.add('hidden'));
-document.getElementById('lessonBundle').addEventListener('change', (event) => {
+lessonBundle.addEventListener('change', (event) => {
     const [pathId, subjectId, lessonId] = event.target.value.split('|');
     document.getElementById('pathId').value = pathId || '';
     document.getElementById('subjectId').value = subjectId || '';

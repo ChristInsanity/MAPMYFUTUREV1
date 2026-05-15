@@ -28,7 +28,6 @@ include '../header.php';
 <div class="mb-8">
     <div class="flex flex-col lg:flex-row justify-between gap-5 mb-6">
         <div>
-            <p class="text-blue-300 font-semibold mb-2">Career command center</p>
             <h1 class="text-3xl lg:text-5xl font-bold mb-2">Welcome back, <?= e(explode(' ', $profile['full_name'])[0]) ?></h1>
             <p class="text-slate-400"><?= e($profile['student_type'] ?? 'Student') ?> pursuing <?= e($profile['career_path']) ?></p>
         </div>

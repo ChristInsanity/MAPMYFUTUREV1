@@ -11,19 +11,24 @@ $rootPrefix = ($inStudentDir || $inAdminDir || $inMentorDir || $inEmployerDir) ?
 $studentPrefix = $inStudentDir ? '' : 'student/';
 $role = $_SESSION['role'] ?? 'student';
 $userName = $_SESSION['full_name'] ?? $_SESSION['name'] ?? 'User';
+$userEmail = $_SESSION['email'] ?? '';
 $firstName = strtok($userName, ' ') ?: $userName;
 $avatarInitial = strtoupper(substr($userName, 0, 1));
 $accountRoleLabel = ucfirst($role);
 $profilePhoto = $_SESSION['profile_photo'] ?? null;
 
-if (!$profilePhoto && isset($conn, $_SESSION['user_id'])) {
-    $profileStmt = $conn->prepare("SELECT profile_photo FROM users WHERE user_id = ? LIMIT 1");
+if (isset($conn, $_SESSION['user_id'])) {
+    $profileStmt = $conn->prepare("SELECT full_name, email, profile_photo FROM users WHERE user_id = ? LIMIT 1");
     if ($profileStmt) {
         $headerUserId = (int)$_SESSION['user_id'];
         $profileStmt->bind_param("i", $headerUserId);
         $profileStmt->execute();
         $profileRow = $profileStmt->get_result()->fetch_assoc();
-        $profilePhoto = $profileRow['profile_photo'] ?? null;
+        $userName = $profileRow['full_name'] ?? $userName;
+        $userEmail = $profileRow['email'] ?? $userEmail;
+        $firstName = strtok($userName, ' ') ?: $userName;
+        $avatarInitial = strtoupper(substr($userName, 0, 1));
+        $profilePhoto = $profilePhoto ?: ($profileRow['profile_photo'] ?? null);
     }
 }
 
@@ -39,7 +44,6 @@ if ($inAdminDir) {
     $navItems = [
         'dashboard' => ['Dashboard', 'dashboard.php', 'fa-chart-line'],
         'students' => ['Users', 'students.php', 'fa-users'],
-        'sales' => ['Reports', 'sales_reports.php', 'fa-file-lines'],
         'analytics' => ['Analytics', 'analytics.php', 'fa-chart-pie'],
         'subscriptions' => ['Subscription Reports', 'sales_reports.php', 'fa-crown'],
         'verification' => ['Verification', 'verification_center.php', 'fa-user-check'],
@@ -72,10 +76,10 @@ if ($inAdminDir) {
         'roadmap' => ['Roadmap', $studentPrefix . 'roadmap.php', 'fa-route'],
         'assessments' => ['Assessment', $studentPrefix . 'assessments.php', 'fa-brain'],
         'skill_gap' => ['Skill Gap', $studentPrefix . 'skill_gap.php', 'fa-bolt'],
-        'mentors' => ['Mentors', $studentPrefix . 'find_mentors.php', 'fa-users'],
+        'find_mentor' => ['Find Mentor', $studentPrefix . 'find_mentors.php', 'fa-user-plus'],
+        'my_mentor' => ['My Mentor', $studentPrefix . 'mentors.php', 'fa-user-check'],
         'subscription' => ['Premium', $studentPrefix . 'subscription.php', 'fa-crown'],
         'jobs' => ['Job Market', $studentPrefix . 'job_market.php', 'fa-briefcase'],
-        'mentor_tasks' => ['Tasks', $studentPrefix . 'mentor_tasks.php', 'fa-list-check'],
     ];
 }
 
@@ -103,8 +107,47 @@ if ($role === 'student') {
 $profileMenuItems = [
     ['Profile', 'fa-user', $profileUrl, $activePage === 'profile'],
     ['Settings', 'fa-gear', $profileUrl, $activePage === 'profile'],
+    ['Notifications', 'fa-bell', null, false],
     ['My Portfolio', 'fa-folder-open', $portfolioUrl, $activePage === 'portfolio'],
 ];
+
+$roleProfile = [];
+if (isset($conn, $_SESSION['user_id'])) {
+    $headerUserId = (int)$_SESSION['user_id'];
+    if ($role === 'student') {
+        $roleStmt = $conn->prepare("SELECT course, career_path FROM student_profiles WHERE user_id = ? LIMIT 1");
+    } elseif ($role === 'mentor') {
+        $roleStmt = $conn->prepare("SELECT specialization, certifications FROM mentor_profiles WHERE user_id = ? LIMIT 1");
+    } elseif ($role === 'employer') {
+        $roleStmt = $conn->prepare("SELECT company_name, industry FROM employer_profiles WHERE user_id = ? LIMIT 1");
+    } else {
+        $roleStmt = null;
+    }
+
+    if ($roleStmt) {
+        $roleStmt->bind_param("i", $headerUserId);
+        $roleStmt->execute();
+        $roleProfile = $roleStmt->get_result()->fetch_assoc() ?: [];
+    }
+}
+
+$profilePanelFields = [
+    ['Name', $userName],
+    ['Email', $userEmail ?: 'Not available'],
+    ['Role', $accountRoleLabel],
+];
+if ($role === 'student') {
+    $profilePanelFields[] = ['Course', $roleProfile['course'] ?? 'Not set'];
+    $profilePanelFields[] = ['Roadmap', $roleProfile['career_path'] ?? 'Not set'];
+} elseif ($role === 'mentor') {
+    $profilePanelFields[] = ['Expertise', $roleProfile['specialization'] ?? 'Not set'];
+    $profilePanelFields[] = ['Certifications', $roleProfile['certifications'] ?? 'Not set'];
+} elseif ($role === 'employer') {
+    $profilePanelFields[] = ['Company', $roleProfile['company_name'] ?? 'Not set'];
+    $profilePanelFields[] = ['Industry', $roleProfile['industry'] ?? 'Not set'];
+} elseif ($role === 'admin') {
+    $profilePanelFields[] = ['Admin Profile', 'Administrative account information'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -143,7 +186,7 @@ $profileMenuItems = [
         .avatar{width:40px;height:40px;border-radius:999px;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-weight:800;overflow:hidden;position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);}
         .avatar img{width:100%;height:100%;object-fit:cover;}
         .profileDropdown{position:relative;}
-        .profileTrigger{min-height:42px;display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(148,163,184,.24);background:rgba(15,23,42,.78);border-radius:14px;padding:4px 10px 4px 4px;color:#e2e8f0;box-shadow:0 10px 26px rgba(0,0,0,.18);transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;}
+        .profileTrigger{min-height:42px;display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(148,163,184,.24);background:rgba(15,23,42,.78);border-radius:12px;padding:4px 10px 4px 4px;color:#e2e8f0;box-shadow:0 10px 26px rgba(0,0,0,.18);transition:transform .18s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;}
         .profileTrigger:hover,.profileTrigger:focus-visible{transform:translateY(-1px);border-color:rgba(59,130,246,.55);background:rgba(30,41,59,.88);box-shadow:0 14px 34px rgba(0,0,0,.26),0 0 0 3px rgba(59,130,246,.12);outline:none;}
         .profileTrigger:hover .avatar,.profileTrigger:focus-visible .avatar{transform:scale(1.04);}
         .profileTrigger .avatar{transition:transform .18s ease;}
@@ -151,12 +194,13 @@ $profileMenuItems = [
         .profileChevron{font-size:12px;color:#93c5fd;transition:transform .2s ease;}
         .profileDropdown.isOpen .profileChevron{transform:rotate(180deg);}
         .statusDot{position:absolute;right:1px;bottom:1px;width:11px;height:11px;border-radius:999px;background:#22c55e;border:2px solid #0f172a;box-shadow:0 0 0 2px rgba(34,197,94,.15);}
-        .profileMenu{position:absolute;right:0;top:calc(100% + 10px);width:min(310px,calc(100vw - 2rem));padding:8px;border-radius:14px;background:rgba(15,23,42,.96);border:1px solid rgba(148,163,184,.22);box-shadow:0 22px 54px rgba(0,0,0,.46),0 0 0 1px rgba(255,255,255,.04);backdrop-filter:blur(18px);opacity:0;transform:translateY(-8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:80;}
+        .profileMenu{position:absolute;right:0;top:calc(100% + 10px);width:min(320px,calc(100vw - 2rem));padding:8px;border-radius:12px;background:rgba(15,23,42,.98);border:1px solid rgba(148,163,184,.22);box-shadow:0 22px 54px rgba(0,0,0,.46),0 0 0 1px rgba(255,255,255,.04);backdrop-filter:blur(18px);opacity:0;transform:translateY(-8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:80;}
         .profileDropdown.isOpen .profileMenu{opacity:1;transform:translateY(0);pointer-events:auto;}
         .profileMenuHeader{display:flex;align-items:center;gap:13px;padding:12px 12px 14px;border-bottom:1px solid rgba(148,163,184,.16);margin-bottom:8px;}
         .profileMenuHeader .avatar{width:54px;height:54px;font-size:20px;flex:0 0 auto;}
         .profileMenuName{font-weight:800;color:#f8fafc;line-height:1.25;}
         .profileMenuRole{color:#93c5fd;font-size:13px;font-weight:700;margin-top:3px;}
+        .profileMenuEmail{color:#94a3b8;font-size:12px;margin-top:2px;}
         .profileMenuList{display:grid;gap:4px;}
         .profileMenuItem{min-height:40px;display:flex;align-items:center;gap:10px;border-radius:12px;padding:9px 10px;color:#cbd5e1;font-weight:700;transition:background .16s ease,color .16s ease,transform .16s ease;}
         .profileMenuItem i{width:18px;text-align:center;color:#93c5fd;font-size:14px;}
@@ -168,6 +212,12 @@ $profileMenuItems = [
         .profileLogout{color:#fecaca;}
         .profileLogout i{color:#f87171;}
         .profileLogout:hover,.profileLogout:focus-visible{background:rgba(239,68,68,.12);color:#fff;}
+        .profilePanelOverlay{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.62);display:flex;align-items:flex-start;justify-content:flex-end;padding:88px 24px 24px;}
+        .profilePanelOverlay[hidden]{display:none;}
+        .profilePanel{width:min(460px,100%);background:#162338;border:1px solid #334155;border-radius:14px;box-shadow:0 28px 70px rgba(0,0,0,.48);padding:20px;}
+        .profilePanelField{background:#020B24;border:1px solid #334155;border-radius:12px;padding:12px;}
+        .profilePanelField span{display:block;color:#94a3b8;font-size:12px;margin-bottom:4px;}
+        .profilePanelField strong{display:block;color:#f8fafc;font-size:14px;line-height:1.45;}
         .floatingBack{position:sticky;top:82px;z-index:30;width:max-content;max-width:100%;border-radius:999px;background:#162338;border:1px solid #334155;display:inline-flex;align-items:center;gap:9px;color:#bfdbfe;box-shadow:0 10px 28px rgba(0,0,0,.25);transition:.2s;padding:10px 14px;margin-bottom:18px;}
         .floatingBack:hover{transform:translateX(-3px);border-color:#3B82F6;box-shadow:0 0 22px rgba(59,130,246,.28);}
         .breadcrumbs{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#94a3b8;font-size:14px;margin-bottom:18px;}
@@ -177,7 +227,7 @@ $profileMenuItems = [
         .masonryCards>*{break-inside:avoid;margin-bottom:1.25rem;}
         @media (min-width:768px){.masonryCards{columns:2;}}
         @media (min-width:1280px){.masonryCards{columns:3;}}
-        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}.mobileMenu .profileDropdown{width:100%;}.mobileMenu .profileTrigger{width:100%;justify-content:space-between;border-radius:14px;padding:6px 12px 6px 6px;}.mobileMenu .profileMenu{position:static;width:100%;margin-top:10px;transform:translateY(-4px);}.mobileMenu .profileDropdown.isOpen .profileMenu{transform:translateY(0);}}
+        @media (max-width: 1023px){.floatingBack{top:76px;}.mobileMenu .navBtn,.mobileMenu .navActive{min-width:max-content;}.mobileMenu .profileDropdown{width:100%;}.mobileMenu .profileTrigger{width:100%;justify-content:space-between;border-radius:12px;padding:6px 12px 6px 6px;}.mobileMenu .profileMenu{position:static;width:100%;margin-top:10px;transform:translateY(-4px);}.mobileMenu .profileDropdown.isOpen .profileMenu{transform:translateY(0);}.profilePanelOverlay{align-items:flex-end;padding:16px;}.profilePanel{width:100%;}}
         @media (max-width: 480px){.profileName{display:none;}.profileMenu{right:auto;left:50%;transform:translate(-50%,-8px);}.profileDropdown.isOpen .profileMenu{transform:translate(-50%,0);}.mobileMenu .profileMenu,.mobileMenu .profileDropdown.isOpen .profileMenu{transform:none;}}
     </style>
 </head>
@@ -232,15 +282,16 @@ $profileMenuItems = [
                             </div>
                             <div class="min-w-0">
                                 <p class="profileMenuName truncate"><?= e($userName) ?></p>
+                                <p class="profileMenuEmail truncate"><?= e($userEmail) ?></p>
                                 <p class="profileMenuRole"><?= e($accountRoleLabel) ?></p>
                             </div>
                         </div>
                         <div class="profileMenuList">
                             <?php foreach ($profileMenuItems as $menuItem): ?>
                                 <?php if ($menuItem[2]): ?>
-                                    <a href="<?= e($menuItem[2]) ?>" class="profileMenuItem <?= $menuItem[3] ? 'isActive' : '' ?>" role="menuitem">
+                                    <a href="<?= e($menuItem[2]) ?>" class="profileMenuItem <?= $menuItem[3] ? 'isActive' : '' ?>" role="menuitem" <?= $menuItem[0] === 'Profile' ? 'data-profile-panel-open' : '' ?>>
                                         <i class="fa-solid <?= e($menuItem[1]) ?>"></i>
-                                        <?= e($menuItem[0]) ?>
+                                        <?= e($menuItem[0] === 'Profile' ? 'My Profile' : $menuItem[0]) ?>
                                     </a>
                                 <?php else: ?>
                                     <span class="profileMenuItem isDisabled" role="menuitem" aria-disabled="true">
@@ -286,12 +337,26 @@ $profileMenuItems = [
                         <i class="fa-solid fa-chevron-down profileChevron" aria-hidden="true"></i>
                     </button>
                     <div class="profileMenu" data-profile-panel role="menu" hidden>
+                        <div class="profileMenuHeader">
+                            <div class="avatar" data-avatar-initial="<?= e($avatarInitial) ?>">
+                                <?php if ($profileImageSrc): ?>
+                                    <img src="<?= e($profileImageSrc) ?>" alt="<?= e($userName) ?>" data-profile-avatar-img>
+                                <?php else: ?>
+                                    <?= e($avatarInitial) ?>
+                                <?php endif; ?>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="profileMenuName truncate"><?= e($userName) ?></p>
+                                <p class="profileMenuEmail truncate"><?= e($userEmail) ?></p>
+                                <p class="profileMenuRole"><?= e($accountRoleLabel) ?></p>
+                            </div>
+                        </div>
                         <div class="profileMenuList">
                             <?php foreach ($profileMenuItems as $menuItem): ?>
                                 <?php if ($menuItem[2]): ?>
-                                    <a href="<?= e($menuItem[2]) ?>" class="profileMenuItem <?= $menuItem[3] ? 'isActive' : '' ?>" role="menuitem">
+                                    <a href="<?= e($menuItem[2]) ?>" class="profileMenuItem <?= $menuItem[3] ? 'isActive' : '' ?>" role="menuitem" <?= $menuItem[0] === 'Profile' ? 'data-profile-panel-open' : '' ?>>
                                         <i class="fa-solid <?= e($menuItem[1]) ?>"></i>
-                                        <?= e($menuItem[0]) ?>
+                                        <?= e($menuItem[0] === 'Profile' ? 'My Profile' : $menuItem[0]) ?>
                                     </a>
                                 <?php else: ?>
                                     <span class="profileMenuItem isDisabled" role="menuitem" aria-disabled="true">
@@ -329,6 +394,43 @@ $profileMenuItems = [
         </div>
     </div>
 </nav>
+
+<div class="profilePanelOverlay" data-profile-account-panel hidden>
+    <section class="profilePanel" role="dialog" aria-modal="true" aria-labelledby="profilePanelTitle">
+        <div class="flex items-start justify-between gap-4 mb-5">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="avatar shrink-0" data-avatar-initial="<?= e($avatarInitial) ?>">
+                    <?php if ($profileImageSrc): ?>
+                        <img src="<?= e($profileImageSrc) ?>" alt="<?= e($userName) ?>" data-profile-avatar-img>
+                    <?php else: ?>
+                        <?= e($avatarInitial) ?>
+                    <?php endif; ?>
+                </div>
+                <div class="min-w-0">
+                    <h2 id="profilePanelTitle" class="text-xl font-bold truncate"><?= e($userName) ?></h2>
+                    <p class="text-sm text-slate-400 truncate"><?= e($userEmail ?: $accountRoleLabel) ?></p>
+                </div>
+            </div>
+            <button type="button" class="secondaryBtn px-3 py-2" data-profile-panel-close aria-label="Close profile panel">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="grid gap-3 mb-5">
+            <?php foreach ($profilePanelFields as $field): ?>
+                <div class="profilePanelField">
+                    <span><?= e($field[0]) ?></span>
+                    <strong><?= e($field[1]) ?></strong>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <?php if ($profileUrl): ?>
+                <a href="<?= e($profileUrl) ?>" class="primaryBtn"><i class="fa-solid fa-pen"></i> Edit Profile</a>
+            <?php endif; ?>
+            <button type="button" class="secondaryBtn" data-profile-panel-close>Close</button>
+        </div>
+    </section>
+</div>
 
 <main class="max-w-7xl mx-auto px-4 lg:px-8 py-8">
 <?php if (!empty($backUrl)): ?>
@@ -406,6 +508,9 @@ mobileMenuBtn?.addEventListener('click', () => {
 });
 
 const profileMenus = Array.from(document.querySelectorAll('[data-profile-menu]'));
+const accountPanel = document.querySelector('[data-profile-account-panel]');
+const accountPanelOpeners = document.querySelectorAll('[data-profile-panel-open]');
+const accountPanelClosers = document.querySelectorAll('[data-profile-panel-close]');
 
 document.querySelectorAll('[data-profile-avatar-img]').forEach((image) => {
     image.addEventListener('error', () => {
@@ -512,6 +617,33 @@ document.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
         closeAllProfileMenus();
+        if (accountPanel && !accountPanel.hidden) {
+            accountPanel.hidden = true;
+        }
+    }
+});
+
+accountPanelOpeners.forEach((link) => {
+    link.addEventListener('click', (event) => {
+        if (!accountPanel) return;
+        event.preventDefault();
+        closeAllProfileMenus();
+        accountPanel.hidden = false;
+        accountPanel.querySelector('[data-profile-panel-close]')?.focus();
+    });
+});
+
+accountPanelClosers.forEach((button) => {
+    button.addEventListener('click', () => {
+        if (accountPanel) {
+            accountPanel.hidden = true;
+        }
+    });
+});
+
+accountPanel?.addEventListener('click', (event) => {
+    if (event.target === accountPanel) {
+        accountPanel.hidden = true;
     }
 });
 

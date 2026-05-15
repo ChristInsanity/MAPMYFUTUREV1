@@ -15,10 +15,25 @@ $breadcrumbs = [
 include '../header.php';
 ?>
 
-<div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Sales + Hiring Reports</p>
-    <h1 class="text-3xl lg:text-4xl font-bold mb-2">Platform Analytics</h1>
-    <p class="text-slate-400">Premium growth, mentor enrollments, employer activity, job postings, and hires.</p>
+<style>
+    .analyticsHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px;}
+    .analyticsKpi{background:linear-gradient(180deg,rgba(30,41,59,.92),rgba(22,35,56,.96));border:1px solid rgba(148,163,184,.22);border-radius:16px;padding:18px;box-shadow:0 16px 36px rgba(0,0,0,.18);}
+    .analyticsKpiTop{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#94a3b8;font-size:13px;font-weight:800;margin-bottom:16px;}
+    .analyticsKpiIcon{width:36px;height:36px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:rgba(59,130,246,.12);color:#93c5fd;border:1px solid rgba(59,130,246,.22);}
+    .analyticsKpiValue{font-size:26px;line-height:1;font-weight:900;color:#f8fafc;}
+    .chartCard{background:#162338;border:1px solid rgba(148,163,184,.22);border-radius:16px;padding:20px;box-shadow:0 18px 42px rgba(0,0,0,.18);}
+    .chartCardHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;}
+    .chartCardHeader h2{font-size:18px;font-weight:900;}
+    .chartCardHeader span{font-size:12px;color:#94a3b8;font-weight:800;text-transform:uppercase;letter-spacing:0;}
+    .chartCanvasWrap{height:260px;}
+    .chartCanvasWrap canvas{width:100%!important;height:100%!important;}
+    @media (max-width:768px){.analyticsHeader{display:block}.chartCanvasWrap{height:220px}}
+</style>
+
+<div class="analyticsHeader">
+    <div>
+        <h1 class="text-3xl lg:text-4xl font-bold mb-2">Platform Analytics</h1>
+    </div>
 </div>
 
 <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
@@ -32,32 +47,32 @@ include '../header.php';
     ];
     foreach ($cards as $card):
     ?>
-        <div class="statCard">
-            <div class="flex justify-between text-slate-400 mb-3">
+        <div class="analyticsKpi">
+            <div class="analyticsKpiTop">
                 <p><?= e($card[0]) ?></p>
-                <i class="fa-solid <?= e($card[2]) ?> text-blue-300"></i>
+                <span class="analyticsKpiIcon"><i class="fa-solid <?= e($card[2]) ?>"></i></span>
             </div>
-            <h2 class="text-2xl font-bold"><?= $card[1] ?></h2>
+            <h2 class="analyticsKpiValue"><?= $card[1] ?></h2>
         </div>
     <?php endforeach; ?>
 </div>
 
 <div class="grid xl:grid-cols-2 gap-6">
-    <section class="card">
-        <h2 class="sectionTitle mb-4">Monthly Premium Sales</h2>
-        <canvas id="salesChart" height="130"></canvas>
+    <section class="chartCard">
+        <div class="chartCardHeader"><h2>Monthly Premium Sales</h2><span>Revenue</span></div>
+        <div class="chartCanvasWrap"><canvas id="salesChart"></canvas></div>
     </section>
-    <section class="card">
-        <h2 class="sectionTitle mb-4">Job Postings</h2>
-        <canvas id="jobsChart" height="130"></canvas>
+    <section class="chartCard">
+        <div class="chartCardHeader"><h2>Job Postings</h2><span>Activity</span></div>
+        <div class="chartCanvasWrap"><canvas id="jobsChart"></canvas></div>
     </section>
-    <section class="card">
-        <h2 class="sectionTitle mb-4">Hired Students</h2>
-        <canvas id="hiresChart" height="130"></canvas>
+    <section class="chartCard">
+        <div class="chartCardHeader"><h2>Hired Students</h2><span>Outcomes</span></div>
+        <div class="chartCanvasWrap"><canvas id="hiresChart"></canvas></div>
     </section>
-    <section class="card">
-        <h2 class="sectionTitle mb-4">Plan Distribution</h2>
-        <canvas id="planChart" height="130"></canvas>
+    <section class="chartCard">
+        <div class="chartCardHeader"><h2>Plan Distribution</h2><span>Plans</span></div>
+        <div class="chartCanvasWrap"><canvas id="planChart"></canvas></div>
     </section>
 </div>
 
@@ -72,7 +87,7 @@ function lineChart(id, label, rows) {
     new Chart(document.getElementById(id), {
         type: 'line',
         data: {labels: rows.map(row => row.label), datasets: [{label, data: rows.map(row => Number(row.total)), borderColor: chartColor, backgroundColor: 'rgba(59,130,246,.15)', fill: true, tension: .35}]},
-        options: {responsive: true, plugins: {legend: {labels: {color: textColor}}}, scales: {x: {ticks: {color: mutedColor}}, y: {ticks: {color: mutedColor}}}}
+        options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {labels: {color: textColor}}}, scales: {x: {ticks: {color: mutedColor}}, y: {ticks: {color: mutedColor}}}}
     });
 }
 
@@ -86,7 +101,7 @@ new Chart(document.getElementById('planChart'), {
         labels: analytics.plan_distribution.map(row => row.label || 'unknown'),
         datasets: [{data: analytics.plan_distribution.map(row => Number(row.total)), backgroundColor: ['#3B82F6', '#22C55E', '#F59E0B', '#A855F7']}]
     },
-    options: {responsive: true, plugins: {legend: {labels: {color: textColor}}}}
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {labels: {color: textColor}}}}
 });
 </script>
 

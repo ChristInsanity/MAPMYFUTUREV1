@@ -28,7 +28,6 @@ include '../header.php';
 <div class="mb-8">
     <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         <div>
-            <p class="text-blue-300 font-semibold mb-2">College-like roadmap</p>
             <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($profile['career_path']) ?> Curriculum</h1>
             <p class="text-slate-400">Every student starts at Year 1 Semester 1. Complete each semester to unlock the next stage.</p>
         </div>
@@ -47,7 +46,6 @@ include '../header.php';
                     <div class="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-bold"><?= (int)$year ?></div>
                     <div>
                         <h2 class="sectionTitle">Year <?= (int)$year ?></h2>
-                        <p class="text-slate-400">Two-semester progression for your chosen path.</p>
                     </div>
                 </div>
                 <?php

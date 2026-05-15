@@ -124,7 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
             <i class="fa-solid fa-route text-2xl"></i>
         </div>
         <h1 class="text-3xl lg:text-4xl font-bold mb-2">Discover the IT path made for you</h1>
-        <p class="text-slate-400">Answer five quick questions so Map My Future can match you with the right career pathway.</p>
     </div>
 
     <?php if (!empty($errors)): ?>
@@ -141,12 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
         <?= csrf_input() ?>
         <div class="flex items-center justify-between mb-5 gap-4">
             <div>
-                <p class="text-slate-400">Onboarding progress</p>
                 <h2 class="text-2xl font-bold">Career discovery wizard</h2>
-            </div>
-            <div class="text-right text-sm text-slate-400">
-                <p>Answer honestly.</p>
-                <p>Continue to personalize your roadmap.</p>
             </div>
         </div>
 

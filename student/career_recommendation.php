@@ -90,7 +90,6 @@ include '../header.php';
                     <div class="bg-[#020B24] border border-[#334155] rounded-3xl p-5">
                         <p class="text-slate-400 uppercase text-xs tracking-[0.24em] mb-2">Top match</p>
                         <h3 class="text-xl font-bold mb-1"><?= e($topMatch['title']) ?></h3>
-                        <p class="text-slate-400">Built from your student type, subjects, activities, and work-style preferences.</p>
                     </div>
                 <?php endif; ?>
                 <div class="bg-[#020B24] border border-[#334155] rounded-3xl p-5">

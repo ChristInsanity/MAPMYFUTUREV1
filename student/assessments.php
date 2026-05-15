@@ -36,7 +36,6 @@ $breadcrumbs = [
 include '../header.php';
 ?>
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Assessment module</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Quizzes and Skill Checks</h1>
     <p class="text-slate-400">Each completed lesson unlocks a quiz. Complete all to finish your subject.</p>
 </div>

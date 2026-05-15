@@ -9,7 +9,7 @@ $mentorId = (int)($_GET['id'] ?? 0);
 $assignment = getStudentMentorAssignment($conn, $studentId, $mentorId);
 
 if (!$assignment) {
-    redirect('find_mentors.php');
+    redirect('mentors.php');
 }
 
 $mentor = dbFetchOne(
@@ -31,12 +31,12 @@ foreach ($tasks as $task) {
 }
 
 $pageTitle = 'Mentor Room';
-$activePage = 'mentors';
-$backUrl = 'find_mentors.php';
-$backLabel = 'Find Mentors';
+$activePage = 'my_mentor';
+$backUrl = 'mentors.php';
+$backLabel = 'My Mentor';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => 'dashboard.php'],
-    ['label' => 'Find Mentors', 'url' => 'find_mentors.php'],
+    ['label' => 'My Mentor', 'url' => 'mentors.php'],
     ['label' => $mentor['full_name'] ?? 'Mentor Room']
 ];
 include '../header.php';

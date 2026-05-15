@@ -89,7 +89,6 @@ include '../header.php';
                 <?php endif; ?>
             </div>
             <div class="min-w-0">
-                <p class="text-blue-300 font-semibold mb-2">Professional portfolio</p>
                 <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($profile['full_name']) ?></h1>
                 <p class="text-xl text-slate-200 mb-3"><?= e($profile['career_path'] ?: 'Career path in progress') ?></p>
                 <div class="flex flex-wrap gap-2 text-sm">
@@ -111,7 +110,6 @@ include '../header.php';
         <section class="card">
             <div class="flex items-center justify-between gap-4 mb-4">
                 <h2 class="sectionTitle">About</h2>
-                <span class="text-sm text-slate-500">From profile</span>
             </div>
             <p class="text-slate-300 leading-7">
                 <?= e($profile['bio'] ?: ($profile['ai_summary'] ?: 'Add a short profile summary to explain your direction, strengths, and career interests.')) ?>
@@ -143,7 +141,6 @@ include '../header.php';
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div>
                     <h2 class="sectionTitle mb-1">Projects</h2>
-                    <p class="text-slate-400">Evidence of skills, code, prototypes, and deployed work.</p>
                 </div>
                 <span class="badge"><?= count($projects) ?> projects</span>
             </div>
@@ -270,7 +267,7 @@ include '../header.php';
                 <?= csrf_input() ?>
                 <label class="block">
                     <span class="block text-sm text-slate-400 mb-2">Project title</span>
-                    <input class="inputStyle" name="title" required placeholder="Student services prototype">
+                    <input class="inputStyle" name="title" required placeholder="Project title">
                 </label>
                 <label class="block">
                     <span class="block text-sm text-slate-400 mb-2">Project summary</span>
@@ -317,7 +314,7 @@ include '../header.php';
                     </a>
                 <?php endif; ?>
                 <?php if (count($githubLinks) === 0 && count($demoLinks) === 0): ?>
-                    <p class="text-slate-400">Add GitHub or live demo links to projects to show them here. LinkedIn and Behance can be added when profile fields exist.</p>
+                    <p class="text-slate-400">No social links yet.</p>
                 <?php endif; ?>
             </div>
         </section>

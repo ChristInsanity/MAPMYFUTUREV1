@@ -26,9 +26,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Applicant tracking system</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Applicants</h1>
-    <p class="text-slate-400">Move students through hiring stages and record hires into employment history.</p>
 </div>
 
 <div class="grid xl:grid-cols-3 gap-5">

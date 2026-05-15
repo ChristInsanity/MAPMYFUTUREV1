@@ -16,9 +16,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Employer Center</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Hiring Dashboard</h1>
-    <p class="text-slate-400">Track job activity, applicants, hires, and student profile views from the database.</p>
 </div>
 
 <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
@@ -46,14 +44,12 @@ include '../header.php';
         <div class="flex items-center justify-between gap-4 mb-5">
             <div>
                 <h2 class="sectionTitle mb-1">Weekly Applications</h2>
-                <p class="text-slate-400">New applications received during the last seven days.</p>
             </div>
         </div>
         <canvas id="weeklyApplicationsChart" height="120"></canvas>
     </section>
     <section class="card">
         <h2 class="sectionTitle mb-1">Hiring Conversion</h2>
-        <p class="text-slate-400 mb-5">Current applicant pipeline by stage.</p>
         <canvas id="conversionChart" height="220"></canvas>
     </section>
 </div>
@@ -62,7 +58,6 @@ include '../header.php';
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h2 class="sectionTitle mb-2">Applicant Review</h2>
-            <p class="text-slate-400">Review readiness scores, portfolios, resumes, and skill compatibility.</p>
         </div>
         <div class="flex flex-wrap gap-3">
             <a href="jobs.php" class="secondaryBtn"><i class="fa-solid fa-briefcase"></i> Manage Job Posts</a>

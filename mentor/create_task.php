@@ -7,6 +7,7 @@ ensureMentorTables($conn);
 
 $mentorId = (int)$_SESSION['user_id'];
 $paths = getMentorCareerAssignments($conn, $mentorId);
+$students = array_values(array_filter(getMentorStudentsOverview($conn, $mentorId), fn($student) => $student['status'] === 'active'));
 $subjects = dbFetchAll(
     $conn,
     "SELECT cs.subject_id, cs.subject_title, cs.subject_code, cy.path_id
@@ -31,16 +32,25 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">DNSC-style task flow</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Create Mentor Task</h1>
-    <p class="text-slate-400">Select a career path, subject, and existing lesson before assigning work.</p>
 </div>
 
 <div id="taskMessage" class="hidden mb-6 rounded-2xl border p-4"></div>
 
 <form id="mentorTaskForm" method="POST" class="card space-y-5">
     <?= csrf_input() ?>
-    <div class="grid lg:grid-cols-3 gap-4">
+    <div class="grid lg:grid-cols-4 gap-4">
+        <label>
+            <span class="text-slate-400">Student</span>
+            <select name="student_id" id="studentSelect" class="inputStyle mt-2">
+                <option value="0" data-subject="">All active students</option>
+                <?php foreach ($students as $student): ?>
+                    <option value="<?= (int)$student['student_id'] ?>" data-subject="<?= (int)$student['subject_id'] ?>">
+                        <?= e($student['full_name']) ?><?= $student['year_number'] && $student['semester_number'] ? ' - Y' . (int)$student['year_number'] . ' S' . (int)$student['semester_number'] : '' ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
         <label>
             <span class="text-slate-400">Career path</span>
             <select name="path_id" id="pathSelect" class="inputStyle mt-2" required>
@@ -84,14 +94,21 @@ include '../header.php';
 
 <script>
 const pathSelect = document.getElementById('pathSelect');
+const studentSelect = document.getElementById('studentSelect');
 const subjectSelect = document.getElementById('subjectSelect');
 const lessonSelect = document.getElementById('lessonSelect');
 
 function filterSubjects() {
     const path = pathSelect.value;
+    const studentSubject = studentSelect.value !== '0'
+        ? studentSelect.selectedOptions[0]?.dataset.subject
+        : '';
     subjectSelect.querySelectorAll('option[data-path]').forEach(option => {
-        option.hidden = path && option.dataset.path !== path;
+        option.hidden = Boolean((path && option.dataset.path !== path) || (studentSubject && option.value !== studentSubject));
     });
+    if (subjectSelect.selectedOptions[0]?.hidden) {
+        subjectSelect.value = '';
+    }
     filterLessons();
 }
 
@@ -100,9 +117,13 @@ function filterLessons() {
     lessonSelect.querySelectorAll('option[data-subject]').forEach(option => {
         option.hidden = subject && option.dataset.subject !== subject;
     });
+    if (lessonSelect.selectedOptions[0]?.hidden) {
+        lessonSelect.value = '';
+    }
 }
 
 pathSelect.addEventListener('change', filterSubjects);
+studentSelect.addEventListener('change', filterSubjects);
 subjectSelect.addEventListener('change', filterLessons);
 filterSubjects();
 

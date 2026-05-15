@@ -1564,7 +1564,7 @@ function getMentorsForStudentCareer($conn, $studentId) {
     $mentors = dbFetchAll(
         $conn,
         "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
-                mp.degree, mp.specialization, mp.years_experience, mp.bio,
+                mp.degree, mp.specialization, mp.industry, mp.years_experience, mp.bio,
                 mp.linkedin_url, mp.github_url, mp.behance_url, mp.portfolio_url,
                 GROUP_CONCAT(cp.title ORDER BY cp.title SEPARATOR ', ') AS assigned_careers,
                 msr.status AS request_status,
@@ -1577,7 +1577,7 @@ function getMentorsForStudentCareer($conn, $studentId) {
          LEFT JOIN mentor_students ms ON ms.mentor_id = u.user_id AND ms.status = 'active'
          WHERE mca.career_path_id = ?
          GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization,
-                  mp.years_experience, mp.bio, mp.linkedin_url, mp.github_url, mp.behance_url,
+                  mp.industry, mp.years_experience, mp.bio, mp.linkedin_url, mp.github_url, mp.behance_url,
                   mp.portfolio_url, msr.status
          ORDER BY u.full_name",
         "ii",
@@ -1678,6 +1678,14 @@ function respondMentorStudentRequest($conn, $mentorId, $requestId, $status) {
     }
 
     dbExecute($conn, "UPDATE mentor_student_requests SET status = ?, reviewed_at = NOW() WHERE request_id = ?", "si", [$status, $requestId]);
+    dbExecute(
+        $conn,
+        "UPDATE mentor_enrollment_requests
+         SET status = ?, reviewed_at = NOW()
+         WHERE mentor_id = ? AND student_id = ? AND status = 'pending'",
+        "sii",
+        [$status === 'accepted' ? 'approved' : 'rejected', $mentorId, (int)$request['student_id']]
+    );
 
     if ($status === 'accepted') {
         $subjects = getStudentSubjectRows($conn, (int)$request['student_id']);
@@ -1860,19 +1868,26 @@ function getMentorStudentsOverview($conn, $mentorId) {
     return dbFetchAll(
         $conn,
         "SELECT ms.*, u.full_name, u.email, sp.career_path, sp.readiness_score,
+                cs.subject_code, cs.subject_title, csem.semester_number, cy.year_number,
+                COALESCE(ss.progress, 0) AS roadmap_progress,
                 MAX(COALESCE(mts.submitted_at, mt.created_at, ms.created_at)) AS latest_activity,
                 COUNT(DISTINCT mt.mentor_task_id) AS assigned_tasks,
                 COUNT(DISTINCT CASE WHEN mts.status = 'submitted' THEN mts.submission_id END) AS pending_submissions
          FROM mentor_students ms
          JOIN users u ON u.user_id = ms.student_id
          LEFT JOIN student_profiles sp ON sp.user_id = ms.student_id
+         LEFT JOIN career_subjects cs ON cs.subject_id = ms.subject_id
+         LEFT JOIN career_semesters csem ON csem.semester_id = cs.semester_id
+         LEFT JOIN career_years cy ON cy.year_id = csem.year_id
+         LEFT JOIN student_subjects ss ON ss.user_id = ms.student_id AND ss.subject_id = ms.subject_id
          LEFT JOIN mentor_tasks mt ON mt.mentor_id = ms.mentor_id
             AND mt.subject_id = ms.subject_id
             AND (mt.assigned_student_id IS NULL OR mt.assigned_student_id = ms.student_id)
          LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ms.student_id
          WHERE ms.mentor_id = ?
          GROUP BY ms.mentor_student_id, ms.mentor_id, ms.student_id, ms.subject_id, ms.status, ms.created_at,
-                  u.full_name, u.email, sp.career_path, sp.readiness_score
+                  u.full_name, u.email, sp.career_path, sp.readiness_score,
+                  cs.subject_code, cs.subject_title, csem.semester_number, cy.year_number, ss.progress
          ORDER BY latest_activity DESC",
         "i",
         [$mentorId]

@@ -22,9 +22,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Upgrade flow</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Activate Premium</h1>
-    <p class="text-slate-400">Select a plan, simulate payment, and unlock mentor access, premium lessons, and exclusive quizzes.</p>
 </div>
 
 <?php if ($subscription): ?>
@@ -66,7 +64,6 @@ include '../header.php';
     <div class="max-w-xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6 shadow-2xl shadow-black/40">
         <div class="flex justify-between items-center mb-5">
             <div>
-                <p class="text-blue-300 font-semibold">Payment simulation</p>
                 <h2 class="text-2xl font-bold"><span id="planName"></span> &middot; &#8369;<span id="planAmount"></span></h2>
             </div>
             <button id="closePayment" type="button" class="secondaryBtn px-3 py-2"><i class="fa-solid fa-xmark"></i></button>

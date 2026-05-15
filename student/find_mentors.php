@@ -15,7 +15,7 @@ $premium = hasPremiumAccess($conn, $userId);
 $mentors = getMentorsForStudentCareer($conn, $userId);
 
 $pageTitle = 'Find Mentors';
-$activePage = 'mentors';
+$activePage = 'find_mentor';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => 'dashboard.php'],
     ['label' => 'Find Mentors']
@@ -24,9 +24,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Mentor discovery</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($profile['career_path'] ?? 'Career') ?> mentors</h1>
-    <p class="text-slate-400">Browse approved mentors assigned by admin to your career pathway.</p>
 </div>
 
 <?php if (!$premium): ?>
@@ -34,7 +32,7 @@ include '../header.php';
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
             <h2 class="sectionTitle mb-2">Premium unlocks mentor enrollment</h2>
-            <p class="text-slate-400">You can view mentor profiles now. Enroll and interact after upgrading.</p>
+            <p class="text-slate-400">You can view mentor profiles now. Request mentor access after upgrading.</p>
         </div>
         <button type="button" class="primaryBtn" data-open-upgrade><i class="fa-solid fa-crown"></i> Upgrade</button>
     </div>
@@ -60,7 +58,7 @@ include '../header.php';
                     <h2 class="text-xl font-bold truncate"><?= e($mentor['full_name']) ?></h2>
                     <p class="text-slate-400 text-sm truncate"><?= e($mentor['email']) ?></p>
                     <div class="mt-2 flex flex-wrap gap-2">
-                        <span class="badge text-yellow-200 border-yellow-500/30 bg-yellow-500/10"><i class="fa-solid fa-star"></i> Rating soon</span>
+                        <span class="badge text-green-200 border-green-500/30 bg-green-500/10"><i class="fa-solid fa-circle-check"></i> Career match</span>
                         <span class="badge text-blue-200 border-blue-500/30 bg-blue-500/10"><?= (int)$mentor['total_students'] ?> students</span>
                     </div>
                 </div>
@@ -68,6 +66,7 @@ include '../header.php';
 
             <div class="space-y-3 text-sm text-slate-300 mb-5 grow">
                 <p><span class="text-slate-500">Specialization:</span> <?= e($mentor['specialization'] ?: 'Not specified') ?></p>
+                <p><span class="text-slate-500">Industry:</span> <?= e($mentor['industry'] ?: 'Not specified') ?></p>
                 <p><span class="text-slate-500">Experience:</span> <?= (int)($mentor['years_experience'] ?? 0) ?> years</p>
                 <p><span class="text-slate-500">Mentorship careers:</span> <?= e($mentor['assigned_careers']) ?></p>
                 <div class="bg-[#020B24] border border-[#334155] rounded-xl p-3">
@@ -80,15 +79,14 @@ include '../header.php';
                 </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-2 gap-2">
                 <a href="../mentor/profile.php?id=<?= (int)$mentor['user_id'] ?>" class="secondaryBtn px-3 py-2 text-sm">View</a>
-                <a href="mentor_room.php?id=<?= (int)$mentor['user_id'] ?>" class="secondaryBtn px-3 py-2 text-sm <?= $requestStatus === 'accepted' ? '' : 'opacity-60 pointer-events-none' ?>">Interact</a>
                 <?php if ($requestStatus): ?>
                     <span class="badge justify-center <?= e(statusClass($requestStatus === 'accepted' ? 'completed' : ($requestStatus === 'rejected' ? 'locked' : 'submitted'))) ?>">
                         <?= e(readableStatus($requestStatus)) ?>
                     </span>
                 <?php else: ?>
-                    <button type="button" class="primaryBtn px-3 py-2 text-sm enrollBtn" data-mentor-id="<?= (int)$mentor['user_id'] ?>">Enroll</button>
+                    <button type="button" class="primaryBtn px-3 py-2 text-sm enrollBtn" data-mentor-id="<?= (int)$mentor['user_id'] ?>">Request</button>
                 <?php endif; ?>
             </div>
         </article>
@@ -138,7 +136,7 @@ document.querySelectorAll('.enrollBtn').forEach(button => {
         } else {
             alert(result.message || 'Unable to enroll.');
             button.disabled = false;
-            button.textContent = 'Enroll';
+            button.textContent = 'Request';
         }
     });
 });

@@ -19,9 +19,7 @@ include '../header.php';
 
 <div class="mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-5">
     <div>
-        <p class="text-blue-300 font-semibold mb-2">Recruiter workspace</p>
         <h1 class="text-3xl lg:text-4xl font-bold mb-2">Job Posts</h1>
-        <p class="text-slate-400">Create career-targeted job posts with required skills for student matching.</p>
     </div>
     <button type="button" id="openJobModal" class="primaryBtn"><i class="fa-solid fa-plus"></i> Create Job</button>
 </div>
@@ -83,7 +81,6 @@ include '../header.php';
     <div class="max-w-3xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
         <div class="flex justify-between gap-4 mb-5">
             <div>
-                <p class="text-blue-300 font-semibold">LinkedIn-style job post</p>
                 <h2 class="text-2xl font-bold" id="jobModalTitle">Create Job</h2>
             </div>
             <button type="button" id="closeJobModal" class="secondaryBtn px-3 py-2"><i class="fa-solid fa-xmark"></i></button>

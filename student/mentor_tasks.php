@@ -8,18 +8,17 @@ $userId = (int)$_SESSION['user_id'];
 $tasks = getAvailableMentorTasksForStudent($conn, $userId);
 
 $pageTitle = 'Mentor Tasks';
-$activePage = 'mentor_tasks';
+$activePage = 'my_mentor';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => 'dashboard.php'],
+    ['label' => 'My Mentor', 'url' => 'mentors.php'],
     ['label' => 'Mentor Tasks']
 ];
 include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Mentor assignments</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">New Mentor Task</h1>
-    <p class="text-slate-400">View resources and upload submissions for mentor-created tasks.</p>
 </div>
 
 <div class="grid lg:grid-cols-2 gap-5">

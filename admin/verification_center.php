@@ -20,9 +20,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Admin review</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">Verification Center</h1>
-    <p class="text-slate-400">Review mentor and employer applications, assign mentor tracks, then approve or reject.</p>
 </div>
 
 <div id="adminMessage" class="hidden mb-6 rounded-2xl border p-4"></div>

@@ -61,7 +61,6 @@ include '../header.php';
     <section class="card">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
             <div>
-                <p class="text-blue-300 font-semibold mb-1">Admin account</p>
                 <h2 class="sectionTitle">Identity</h2>
             </div>
             <?php if ($notice): ?>

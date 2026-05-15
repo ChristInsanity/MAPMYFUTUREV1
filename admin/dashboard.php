@@ -78,7 +78,6 @@ include '../header.php';
 
 <div class="mb-8">
     <h1 class="text-3xl lg:text-4xl font-bold mb-2">System Overview</h1>
-    <p class="text-slate-400">Map My Future Administration Center</p>
 </div>
 
 <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">

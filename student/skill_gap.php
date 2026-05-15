@@ -25,9 +25,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Skill gap analysis</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($profile['career_path']) ?> Readiness</h1>
-    <p class="text-slate-400">Live skill status based on your roadmap tasks, quiz attempts, projects, and mentor reviews.</p>
 </div>
 
 <div class="grid md:grid-cols-3 gap-4 mb-8">
@@ -68,7 +66,6 @@ include '../header.php';
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-6">
         <div>
             <h2 class="sectionTitle mb-1">Skill Cards</h2>
-            <p class="text-slate-400">Compact view of completed, active, and upcoming readiness work.</p>
         </div>
         <a href="roadmap.php" class="secondaryBtn self-start md:self-auto px-4 py-2 text-sm">
             <i class="fa-solid fa-route"></i>

@@ -23,9 +23,7 @@ include '../header.php';
 ?>
 
 <div class="mb-8">
-    <p class="text-blue-300 font-semibold mb-2">Employment phase</p>
     <h1 class="text-3xl lg:text-4xl font-bold mb-2"><?= e($profile['career_path'] ?? 'Career') ?> Job Market</h1>
-    <p class="text-slate-400">Browse roles matched to your roadmap progress, assessments, projects, and career pathway.</p>
 </div>
 
 <div class="grid lg:grid-cols-2 gap-5">
