@@ -1574,14 +1574,17 @@ function getMentorsForStudentCareer($conn, $studentId) {
          LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
          JOIN career_paths cp ON cp.path_id = mca.career_path_id
          LEFT JOIN mentor_student_requests msr ON msr.mentor_id = u.user_id AND msr.student_id = ?
+         LEFT JOIN mentor_assignments ma ON ma.mentor_id = u.user_id AND ma.student_id = ? AND ma.status = 'active'
          LEFT JOIN mentor_students ms ON ms.mentor_id = u.user_id AND ms.status = 'active'
          WHERE mca.career_path_id = ?
+         AND ma.assignment_id IS NULL
+         AND (msr.status IS NULL OR msr.status <> 'accepted')
          GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization,
                   mp.industry, mp.years_experience, mp.bio, mp.linkedin_url, mp.github_url, mp.behance_url,
                   mp.portfolio_url, msr.status
          ORDER BY u.full_name",
-        "ii",
-        [$studentId, $careerPathId]
+        "iii",
+        [$studentId, $studentId, $careerPathId]
     );
 
     return $mentors;

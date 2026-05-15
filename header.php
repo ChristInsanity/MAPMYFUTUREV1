@@ -6,9 +6,10 @@ $inStudentDir = strpos($scriptName, '/student/') !== false;
 $inAdminDir = strpos($scriptName, '/admin/') !== false;
 $inMentorDir = strpos($scriptName, '/mentor/') !== false;
 $inEmployerDir = strpos($scriptName, '/employer/') !== false;
+$navContext = $navContext ?? null;
 $breadcrumbs = $breadcrumbs ?? [];
 $rootPrefix = ($inStudentDir || $inAdminDir || $inMentorDir || $inEmployerDir) ? '../' : '';
-$studentPrefix = $inStudentDir ? '' : 'student/';
+$studentPrefix = $inStudentDir ? '' : $rootPrefix . 'student/';
 $role = $_SESSION['role'] ?? 'student';
 $userName = $_SESSION['full_name'] ?? $_SESSION['name'] ?? 'User';
 $userEmail = $_SESSION['email'] ?? '';
@@ -38,7 +39,11 @@ if (!empty($profilePhoto)) {
     $profileImageSrc = $isAbsoluteProfilePhoto ? $profilePhoto : $rootPrefix . $profilePhoto;
 }
 
-if ($inAdminDir) {
+if ($navContext === null) {
+    $navContext = $inAdminDir ? 'admin' : ($inMentorDir ? 'mentor' : ($inEmployerDir ? 'employer' : 'student'));
+}
+
+if ($navContext === 'admin') {
     $brand = ['Admin Center', 'dashboard.php', 'fa-shield-halved'];
     $roleLabel = 'Admin';
     $navItems = [
@@ -48,7 +53,7 @@ if ($inAdminDir) {
         'subscriptions' => ['Subscription Reports', 'sales_reports.php', 'fa-crown'],
         'verification' => ['Verification', 'verification_center.php', 'fa-user-check'],
     ];
-} elseif ($inMentorDir) {
+} elseif ($navContext === 'mentor') {
     $brand = ['Mentor Center', 'dashboard.php', 'fa-users'];
     $roleLabel = 'Mentor';
     $navItems = [
@@ -60,7 +65,7 @@ if ($inAdminDir) {
         'requests' => ['Requests', 'enrollment_requests.php', 'fa-user-plus'],
         'submissions' => ['Submissions', 'review_submission.php', 'fa-file-circle-check'],
     ];
-} elseif ($inEmployerDir) {
+} elseif ($navContext === 'employer') {
     $brand = ['Employer Center', 'dashboard.php', 'fa-building'];
     $roleLabel = 'Employer';
     $navItems = [

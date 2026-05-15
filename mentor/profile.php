@@ -34,6 +34,9 @@ $pageTitle = 'Mentor Profile';
 $activePage = $isOwner ? 'profile' : (($_SESSION['role'] ?? '') === 'student' ? 'find_mentor' : 'mentors');
 $backUrl = ($_SESSION['role'] ?? '') === 'student' ? '../student/find_mentors.php' : 'dashboard.php';
 $backLabel = 'Back';
+if (($_SESSION['role'] ?? '') === 'student' && !$isOwner) {
+    $navContext = 'student';
+}
 include '../header.php';
 $avatarUrl = profilePhotoUrl($mentor['profile_photo'] ?? '');
 $initials = profileInitials($mentor['full_name'] ?? 'Mentor');

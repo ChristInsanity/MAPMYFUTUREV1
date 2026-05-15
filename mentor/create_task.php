@@ -6,6 +6,7 @@ requireMentor();
 ensureMentorTables($conn);
 
 $mentorId = (int)$_SESSION['user_id'];
+$preselectedStudentId = (int)($_GET['student_id'] ?? 0);
 $paths = getMentorCareerAssignments($conn, $mentorId);
 $students = array_values(array_filter(getMentorStudentsOverview($conn, $mentorId), fn($student) => $student['status'] === 'active'));
 $subjects = dbFetchAll(
@@ -39,18 +40,8 @@ include '../header.php';
 
 <form id="mentorTaskForm" method="POST" class="card space-y-5">
     <?= csrf_input() ?>
-    <div class="grid lg:grid-cols-4 gap-4">
-        <label>
-            <span class="text-slate-400">Student</span>
-            <select name="student_id" id="studentSelect" class="inputStyle mt-2">
-                <option value="0" data-subject="">All active students</option>
-                <?php foreach ($students as $student): ?>
-                    <option value="<?= (int)$student['student_id'] ?>" data-subject="<?= (int)$student['subject_id'] ?>">
-                        <?= e($student['full_name']) ?><?= $student['year_number'] && $student['semester_number'] ? ' - Y' . (int)$student['year_number'] . ' S' . (int)$student['semester_number'] : '' ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
+    <input type="hidden" name="student_id" value="0">
+    <div class="grid lg:grid-cols-3 gap-4">
         <label>
             <span class="text-slate-400">Career path</span>
             <select name="path_id" id="pathSelect" class="inputStyle mt-2" required>
@@ -80,6 +71,29 @@ include '../header.php';
         </label>
     </div>
 
+    <div>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-3">
+            <div>
+                <span class="text-slate-400">Students</span>
+                <p class="text-sm text-slate-500">Leave every student unchecked to assign to all active students in the selected subject.</p>
+            </div>
+            <button type="button" id="clearStudents" class="secondaryBtn px-3 py-2 text-sm">Clear Selection</button>
+        </div>
+        <div id="studentChecklist" class="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <?php foreach ($students as $student): ?>
+                <label class="studentChoice bg-[#020B24] border border-[#334155] rounded-xl p-4 flex items-start gap-3" data-subject="<?= (int)$student['subject_id'] ?>">
+                    <input type="checkbox" name="student_ids[]" value="<?= (int)$student['student_id'] ?>" class="mt-1" <?= $preselectedStudentId === (int)$student['student_id'] ? 'checked' : '' ?>>
+                    <span>
+                        <span class="block font-semibold"><?= e($student['full_name']) ?></span>
+                        <span class="block text-sm text-slate-400"><?= $student['year_number'] && $student['semester_number'] ? 'Year ' . (int)$student['year_number'] . ' - Semester ' . (int)$student['semester_number'] : 'Year/semester not set' ?></span>
+                        <span class="block text-xs text-blue-200"><?= e($student['subject_code'] ?: 'Current subject') ?></span>
+                    </span>
+                </label>
+            <?php endforeach; ?>
+            <?php if (count($students) === 0): ?><p class="text-slate-400">No active students available.</p><?php endif; ?>
+        </div>
+    </div>
+
     <input name="title" class="inputStyle" placeholder="Task title" required>
     <textarea name="instructions" class="inputStyle min-h-[160px]" placeholder="Instructions" required></textarea>
     <textarea name="resources" class="inputStyle min-h-[120px]" placeholder="Resources, links, or reading notes"></textarea>
@@ -94,22 +108,20 @@ include '../header.php';
 
 <script>
 const pathSelect = document.getElementById('pathSelect');
-const studentSelect = document.getElementById('studentSelect');
 const subjectSelect = document.getElementById('subjectSelect');
 const lessonSelect = document.getElementById('lessonSelect');
+const studentChoices = Array.from(document.querySelectorAll('.studentChoice'));
 
 function filterSubjects() {
     const path = pathSelect.value;
-    const studentSubject = studentSelect.value !== '0'
-        ? studentSelect.selectedOptions[0]?.dataset.subject
-        : '';
     subjectSelect.querySelectorAll('option[data-path]').forEach(option => {
-        option.hidden = Boolean((path && option.dataset.path !== path) || (studentSubject && option.value !== studentSubject));
+        option.hidden = Boolean(path && option.dataset.path !== path);
     });
     if (subjectSelect.selectedOptions[0]?.hidden) {
         subjectSelect.value = '';
     }
     filterLessons();
+    filterStudents();
 }
 
 function filterLessons() {
@@ -122,9 +134,25 @@ function filterLessons() {
     }
 }
 
+function filterStudents() {
+    const subject = subjectSelect.value;
+    studentChoices.forEach(choice => {
+        const hidden = Boolean(subject && choice.dataset.subject !== subject);
+        choice.classList.toggle('hidden', hidden);
+        if (hidden) {
+            choice.querySelector('input').checked = false;
+        }
+    });
+}
+
 pathSelect.addEventListener('change', filterSubjects);
-studentSelect.addEventListener('change', filterSubjects);
-subjectSelect.addEventListener('change', filterLessons);
+subjectSelect.addEventListener('change', () => {
+    filterLessons();
+    filterStudents();
+});
+document.getElementById('clearStudents').addEventListener('click', () => {
+    studentChoices.forEach(choice => choice.querySelector('input').checked = false);
+});
 filterSubjects();
 
 document.getElementById('mentorTaskForm').addEventListener('submit', async (event) => {

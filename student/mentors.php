@@ -30,8 +30,6 @@ $assignments = dbFetchAll(
     "i",
     [$userId]
 );
-$requests = array_values(array_filter(getStudentMentorRequests($conn, $userId), fn($request) => $request['status'] === 'pending'));
-$tasks = getAvailableMentorTasksForStudent($conn, $userId);
 
 $pageTitle = 'My Mentor';
 $activePage = 'my_mentor';
@@ -86,11 +84,7 @@ include '../header.php';
                 <?= $mentor['latest_activity'] ? e(date('M d, Y', strtotime($mentor['latest_activity']))) : 'No activity yet' ?>
             </p>
 
-            <div class="grid grid-cols-3 gap-2">
-                <a href="mentor_room.php?id=<?= (int)$mentor['mentor_id'] ?>" class="primaryBtn px-3 py-2 text-sm">Room</a>
-                <a href="mentor_tasks.php" class="secondaryBtn px-3 py-2 text-sm">Tasks</a>
-                <a href="../mentor/profile.php?id=<?= (int)$mentor['mentor_id'] ?>" class="secondaryBtn px-3 py-2 text-sm">Profile</a>
-            </div>
+            <a href="mentor_room.php?id=<?= (int)$mentor['mentor_id'] ?>" class="primaryBtn w-full px-3 py-2 text-sm">Room</a>
         </article>
     <?php endforeach; ?>
     <?php if (count($assignments) === 0): ?>
@@ -98,55 +92,6 @@ include '../header.php';
             <h2 class="sectionTitle mb-2">No assigned mentor yet</h2>
         </div>
     <?php endif; ?>
-</section>
-
-<?php if (count($requests) > 0): ?>
-<section class="card mb-8">
-    <h2 class="sectionTitle mb-4">Pending Requests</h2>
-    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <?php foreach ($requests as $request): ?>
-            <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <p class="font-bold"><?= e($request['mentor_name']) ?></p>
-                        <p class="text-sm text-slate-400"><?= e($request['subject_title']) ?></p>
-                    </div>
-                    <span class="badge text-purple-300 border-purple-500/30 bg-purple-500/10">Pending</span>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-</section>
-<?php endif; ?>
-
-<section class="card">
-    <div class="flex items-center justify-between gap-4 mb-5">
-        <h2 class="sectionTitle">Submitted Tasks & Feedback</h2>
-        <a href="mentor_tasks.php" class="secondaryBtn px-3 py-2 text-sm">View All</a>
-    </div>
-    <div class="grid lg:grid-cols-2 gap-4">
-        <?php foreach (array_slice($tasks, 0, 4) as $task): ?>
-            <article class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
-                <div class="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                        <h3 class="font-bold"><?= e($task['title']) ?></h3>
-                        <p class="text-sm text-slate-400"><?= e($task['mentor_name']) ?> - <?= e($task['subject_title']) ?></p>
-                    </div>
-                    <span class="badge <?= e(statusClass($task['submission_status'] ? ($task['submission_status'] === 'approved' ? 'completed' : 'submitted') : 'available')) ?>">
-                        <?= e($task['submission_status'] ? readableStatus($task['submission_status']) : 'Pending') ?>
-                    </span>
-                </div>
-                <?php if ($task['comment']): ?>
-                    <p class="text-sm text-blue-200 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3"><?= e($task['comment']) ?></p>
-                <?php else: ?>
-                    <p class="text-sm text-slate-500"><?= $task['deadline'] ? 'Due ' . e(date('M d, Y', strtotime($task['deadline']))) : 'No deadline' ?></p>
-                <?php endif; ?>
-            </article>
-        <?php endforeach; ?>
-        <?php if (count($tasks) === 0): ?>
-            <p class="text-slate-400 lg:col-span-2">No mentor tasks yet.</p>
-        <?php endif; ?>
-    </div>
 </section>
 
 <?php include '../footer.php'; ?>

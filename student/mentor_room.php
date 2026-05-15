@@ -57,7 +57,6 @@ include '../header.php';
             <p class="text-slate-400"><?= e($mentor['specialization'] ?: 'Mentor') ?> · <?= (int)($mentor['years_experience'] ?? 0) ?> years</p>
         </div>
     </div>
-    <a href="../mentor/profile.php?id=<?= (int)$mentorId ?>" class="secondaryBtn"><i class="fa-solid fa-id-card"></i> View Profile</a>
 </div>
 
 <div class="grid lg:grid-cols-3 gap-8">

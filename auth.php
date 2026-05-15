@@ -8,12 +8,46 @@ require_once 'includes/student_functions.php';
 // ==============================
 $error = $_SESSION['error'] ?? null;
 $success = $_SESSION['success'] ?? null;
+$authErrors = $_SESSION['auth_errors'] ?? [];
+$authForm = $_SESSION['auth_form'] ?? 'login';
 
 unset($_SESSION['error']);
 unset($_SESSION['success']);
+unset($_SESSION['auth_errors']);
+unset($_SESSION['auth_form']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
+}
+
+function authErrorResponse($message, $errors = [], $form = 'login') {
+    if (isAjaxRequest()) {
+        jsonResponse([
+            'success' => false,
+            'message' => $message,
+            'errors' => $errors,
+            'form' => $form
+        ], 422);
+    }
+
+    $_SESSION['error'] = $message;
+    $_SESSION['auth_errors'] = $errors;
+    $_SESSION['auth_form'] = $form;
+    redirect("auth.php");
+}
+
+function authSuccessResponse($message, $redirectUrl = null, $form = 'register') {
+    if (isAjaxRequest()) {
+        jsonResponse([
+            'success' => true,
+            'message' => $message,
+            'redirect' => $redirectUrl,
+            'form' => $form
+        ]);
+    }
+
+    $_SESSION['success'] = $message;
+    redirect($redirectUrl ?: "auth.php");
 }
 
 
@@ -51,13 +85,17 @@ if(isset($_POST['register'])){
     $companyProfilePath = null;
 
     if($password !== $confirmPassword){
-        $_SESSION['error'] = "Passwords do not match.";
-        redirect("auth.php");
+        authErrorResponse("Passwords do not match.", ['confirm_password' => 'Passwords do not match'], 'register');
     }
 
     if ($role === 'mentor' && ($mentorAge <= 0 || $mentorDegree === '' || $mentorSpecialization === '' || $mentorYears < 0 || empty($_FILES['mentor_resume']['name']))) {
-        $_SESSION['error'] = "Please complete the mentor application details.";
-        redirect("auth.php");
+        $mentorErrors = [];
+        if ($mentorAge <= 0) $mentorErrors['mentor_age'] = 'Age is required';
+        if ($mentorDegree === '') $mentorErrors['mentor_degree'] = 'Degree is required';
+        if ($mentorSpecialization === '') $mentorErrors['mentor_specialization'] = 'Specialization is required';
+        if ($mentorYears < 0) $mentorErrors['mentor_years_experience'] = 'Years experience is invalid';
+        if (empty($_FILES['mentor_resume']['name'])) $mentorErrors['mentor_resume'] = 'Resume PDF is required';
+        authErrorResponse("Please complete the mentor application details.", $mentorErrors, 'register');
     }
 
     if ($role === 'employer' && (
@@ -73,8 +111,19 @@ if(isset($_POST['register'])){
         empty($_FILES['business_permit_upload']['name']) ||
         empty($_FILES['company_profile_pdf']['name'])
     )) {
-        $_SESSION['error'] = "Please complete the employer application details.";
-        redirect("auth.php");
+        $employerErrors = [];
+        if ($employerCompanyName === '') $employerErrors['employer_company_name'] = 'Company name is required';
+        if ($employerBusinessEmail === '') $employerErrors['employer_business_email'] = 'Business email is required';
+        if ($employerIndustry === '') $employerErrors['employer_industry'] = 'Industry is required';
+        if ($employerCompanySize === '') $employerErrors['employer_company_size'] = 'Company size is required';
+        if ($employerRegistrationNumber === '') $employerErrors['employer_registration_number'] = 'Registration number is required';
+        if ($employerContactPerson === '') $employerErrors['employer_contact_person'] = 'Contact person is required';
+        if ($employerContactPosition === '') $employerErrors['employer_contact_position'] = 'Contact position is required';
+        if ($employerContactNumber === '') $employerErrors['employer_contact_number'] = 'Contact number is required';
+        if ($employerOfficeAddress === '') $employerErrors['employer_office_address'] = 'Office address is required';
+        if (empty($_FILES['business_permit_upload']['name'])) $employerErrors['business_permit_upload'] = 'Business permit PDF is required';
+        if (empty($_FILES['company_profile_pdf']['name'])) $employerErrors['company_profile_pdf'] = 'Company profile PDF is required';
+        authErrorResponse("Please complete the employer application details.", $employerErrors, 'register');
     }
 
     if ($role === 'mentor' && isset($_FILES['mentor_resume']) && !empty($_FILES['mentor_resume']['name'])) {
@@ -82,8 +131,7 @@ if(isset($_POST['register'])){
         $extension = strtolower(pathinfo($_FILES['mentor_resume']['name'], PATHINFO_EXTENSION));
 
         if (!in_array($extension, $allowed, true)) {
-            $_SESSION['error'] = "Resume upload must be PDF.";
-            redirect("auth.php");
+            authErrorResponse("Resume upload must be PDF.", ['mentor_resume' => 'Resume upload must be PDF'], 'register');
         }
 
         $uploadDir = __DIR__ . '/uploads/mentors';
@@ -109,8 +157,7 @@ if(isset($_POST['register'])){
         foreach (['business_permit_upload' => 'permit', 'company_profile_pdf' => 'profile'] as $field => $prefix) {
             $extension = strtolower(pathinfo($_FILES[$field]['name'] ?? '', PATHINFO_EXTENSION));
             if ($extension !== 'pdf') {
-                $_SESSION['error'] = "Employer verification uploads must be PDF.";
-                redirect("auth.php");
+                authErrorResponse("Employer verification uploads must be PDF.", [$field => 'Upload must be PDF'], 'register');
             }
 
             $safeName = $prefix . '-' . preg_replace('/[^A-Za-z0-9_-]/', '-', pathinfo($_FILES[$field]['name'], PATHINFO_FILENAME));
@@ -149,8 +196,7 @@ if(isset($_POST['register'])){
 
     if($check->get_result()->num_rows > 0){
 
-        $_SESSION['error'] = "Email already exists.";
-        redirect("auth.php");
+        authErrorResponse("Email already exists.", ['email' => 'Email already exists'], 'register');
 
     }
 
@@ -287,21 +333,15 @@ if(isset($_POST['register'])){
         }
 
         if($role=="student"){
-            $_SESSION['success'] =
-                "Account created successfully.";
+            authSuccessResponse("Account created successfully.", null, 'register');
         }else{
-            $_SESSION['success'] =
-                $role === 'mentor' ? "Application submitted for review." : "Registration submitted for approval.";
+            authSuccessResponse($role === 'mentor' ? "Application submitted for review." : "Registration submitted for approval.", null, 'register');
         }
 
     }else{
 
-        $_SESSION['error'] =
-            "Something went wrong.";
+        authErrorResponse("Something went wrong.", [], 'register');
     }
-
-
-    redirect("auth.php");
 }
 
 
@@ -331,8 +371,7 @@ if(isset($_POST['login'])){
 
     if($result->num_rows != 1){
 
-        $_SESSION['error'] = "User not found.";
-        redirect("auth.php");
+        authErrorResponse("User not found.", ['email' => 'User not found'], 'login');
 
     }
 
@@ -345,20 +384,14 @@ if(isset($_POST['login'])){
         $user['password']
     )){
 
-        $_SESSION['error'] =
-            "Invalid password.";
-
-        redirect("auth.php");
+        authErrorResponse("Invalid password.", ['password' => 'Invalid password'], 'login');
     }
 
 
 
     if($user['status'] != "approved"){
 
-        $_SESSION['error'] =
-            "Account waiting for approval.";
-
-        redirect("auth.php");
+        authErrorResponse("Account waiting for approval.", ['email' => 'Account waiting for approval'], 'login');
     }
 
 
@@ -372,7 +405,7 @@ if(isset($_POST['login'])){
     // ADMIN
     if($user['role']=="admin"){
 
-        redirect("admin/dashboard.php");
+        authSuccessResponse("Signed in successfully.", "admin/dashboard.php", 'login');
     }
 
 
@@ -383,11 +416,11 @@ if(isset($_POST['login'])){
 
         if($user['profile_completed']==0){
 
-            redirect("student/profile_setup.php");
+            authSuccessResponse("Signed in successfully.", "student/profile_setup.php", 'login');
 
         }else{
 
-            redirect("student/dashboard.php");
+            authSuccessResponse("Signed in successfully.", "student/dashboard.php", 'login');
         }
 
     }
@@ -396,14 +429,14 @@ if(isset($_POST['login'])){
 
     if($user['role']=="mentor"){
 
-        redirect("mentor/dashboard.php");
+        authSuccessResponse("Signed in successfully.", "mentor/dashboard.php", 'login');
     }
 
 
 
     if($user['role']=="employer"){
 
-        redirect("employer/dashboard.php");
+        authSuccessResponse("Signed in successfully.", "employer/dashboard.php", 'login');
     }
 }
 
@@ -462,25 +495,9 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
 
     <!-- MESSAGE -->
-    <?php if(isset($error)): ?>
-
-        <div class="bg-red-500/20 border border-red-500 p-3 rounded-xl mb-4">
-            <?= $error ?>
-        </div>
-
-    <?php endif; ?>
-
-
-    <?php if(isset($success)): ?>
-
-        <div class="bg-green-500/20 border border-green-500 p-3 rounded-xl mb-4">
-            <?= $success ?>
-        </div>
-
-    <?php endif; ?>
-
-
-
+    <div id="authMessage" class="<?= isset($error) || isset($success) ? '' : 'hidden' ?> p-3 rounded-xl mb-4 <?= isset($error) ? 'bg-red-500/20 border border-red-500 text-red-100' : 'bg-green-500/20 border border-green-500 text-green-100' ?>">
+        <?= e($error ?? $success ?? '') ?>
+    </div>
 
     <!-- TABS -->
     <div class="flex mb-6 bg-slate-800 rounded-xl p-1">
@@ -728,14 +745,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
                 </div>
 
                 <div class="grid sm:grid-cols-2 gap-3">
-                    <input type="number" name="mentor_age" min="18" placeholder="Age" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="text" name="mentor_degree" placeholder="Degree" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="text" name="mentor_specialization" placeholder="Specialization" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="number" name="mentor_years_experience" min="0" placeholder="Years experience" class="w-full p-3 rounded-xl bg-slate-800">
+                    <input type="number" name="mentor_age" min="18" placeholder="Age" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="mentor">
+                    <input type="text" name="mentor_degree" placeholder="Degree" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="mentor">
+                    <input type="text" name="mentor_specialization" placeholder="Specialization" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="mentor">
+                    <input type="number" name="mentor_years_experience" min="0" placeholder="Years experience" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="mentor">
                     <input type="text" name="mentor_industry" placeholder="Industry" class="w-full p-3 rounded-xl bg-slate-800">
                     <label class="block">
                         <span class="block text-sm text-slate-400 mb-2">Upload Resume (PDF only)</span>
-                        <input type="file" name="mentor_resume" accept=".pdf" class="w-full p-3 rounded-xl bg-slate-800 text-sm">
+                        <input type="file" name="mentor_resume" accept=".pdf" class="w-full p-3 rounded-xl bg-slate-800 text-sm" data-required-for="mentor">
                         <span class="text-xs text-slate-500">Supported format: PDF</span>
                     </label>
                 </div>
@@ -788,32 +805,32 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
                 <h3 class="font-bold mb-3 text-blue-200">Company Identity</h3>
                 <div class="grid sm:grid-cols-2 gap-3 mb-4">
-                    <input type="text" name="employer_company_name" placeholder="Company Name" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="email" name="employer_business_email" placeholder="Business Email" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="text" name="employer_industry" placeholder="Industry" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="text" name="employer_company_size" placeholder="Company Size" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="url" name="employer_website" placeholder="Website" class="w-full p-3 rounded-xl bg-slate-800">
+                    <input type="text" name="employer_company_name" placeholder="Company Name" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <input type="email" name="employer_business_email" placeholder="Business Email" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <input type="text" name="employer_industry" placeholder="Industry" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <input type="text" name="employer_company_size" placeholder="Company Size" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <input type="url" name="employer_website" placeholder="https://company.example" class="w-full p-3 rounded-xl bg-slate-800" inputmode="url">
                 </div>
 
                 <h3 class="font-bold mb-3 text-blue-200">Verification</h3>
                 <div class="grid sm:grid-cols-2 gap-3 mb-4">
-                    <input type="text" name="employer_registration_number" placeholder="Business Registration Number" class="w-full p-3 rounded-xl bg-slate-800">
+                    <input type="text" name="employer_registration_number" placeholder="Business Registration Number" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
                     <label class="block">
                         <span class="block text-sm text-slate-400 mb-2">Business Permit Upload (PDF)</span>
-                        <input type="file" name="business_permit_upload" accept=".pdf" class="w-full p-3 rounded-xl bg-slate-800 text-sm">
+                        <input type="file" name="business_permit_upload" accept=".pdf" class="w-full p-3 rounded-xl bg-slate-800 text-sm" data-required-for="employer">
                     </label>
                     <label class="block sm:col-span-2">
                         <span class="block text-sm text-slate-400 mb-2">Company Profile PDF</span>
-                        <input type="file" name="company_profile_pdf" accept=".pdf" class="w-full p-3 rounded-xl bg-slate-800 text-sm">
+                        <input type="file" name="company_profile_pdf" accept=".pdf" class="w-full p-3 rounded-xl bg-slate-800 text-sm" data-required-for="employer">
                     </label>
                 </div>
 
                 <h3 class="font-bold mb-3 text-blue-200">Contact</h3>
                 <div class="grid sm:grid-cols-2 gap-3">
-                    <input type="text" name="employer_contact_person" placeholder="Contact Person" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="text" name="employer_contact_position" placeholder="Position" class="w-full p-3 rounded-xl bg-slate-800">
-                    <input type="text" name="employer_contact_number" placeholder="Contact Number" class="w-full p-3 rounded-xl bg-slate-800">
-                    <textarea name="employer_office_address" rows="3" placeholder="Office Address" class="w-full p-3 rounded-xl bg-slate-800 resize-none sm:col-span-2"></textarea>
+                    <input type="text" name="employer_contact_person" placeholder="Contact Person" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <input type="text" name="employer_contact_position" placeholder="Position" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <input type="text" name="employer_contact_number" placeholder="Contact Number" class="w-full p-3 rounded-xl bg-slate-800" data-required-for="employer">
+                    <textarea name="employer_office_address" rows="3" placeholder="Office Address" class="w-full p-3 rounded-xl bg-slate-800 resize-none sm:col-span-2" data-required-for="employer"></textarea>
                 </div>
 
                 <button type="button" onclick="closeEmployerModal()" class="w-full mt-5 bg-blue-600 py-3 rounded-xl font-semibold hover:bg-blue-500">
@@ -823,6 +840,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
         </div>
 
         <button
+            type="button"
+            id="registerSubmit"
             name="register"
             class="w-full bg-green-600 py-3 rounded-xl font-semibold hover:bg-green-500"
         >
@@ -875,6 +894,18 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     box-shadow:0 0 20px rgba(37,99,235,.3);
 }
 
+.fieldError{
+    display:block;
+    color:#fca5a5;
+    font-size:12px;
+    margin:-10px 0 12px;
+}
+
+#mentorModal .fieldError,
+#employerModal .fieldError{
+    margin:6px 0 0;
+}
+
 </style>
 
 
@@ -883,6 +914,176 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
 
 <script>
 
+const initialAuthErrors = <?= json_encode($authErrors) ?>;
+const initialAuthForm = "<?= e($authForm) ?>";
+const authMessage = document.getElementById('authMessage');
+const authRequestHeaders = {
+    'X-Requested-With': 'XMLHttpRequest',
+    'Accept': 'application/json'
+};
+
+function selectedRole() {
+    return document.querySelector('input[name="role"]:checked')?.value || 'student';
+}
+
+function showAuthMessage(message, isSuccess = false) {
+    authMessage.textContent = message || '';
+    authMessage.className = `p-3 rounded-xl mb-4 ${isSuccess ? 'bg-green-500/20 border border-green-500 text-green-100' : 'bg-red-500/20 border border-red-500 text-red-100'}`;
+    authMessage.classList.toggle('hidden', !message);
+}
+
+function clearFieldErrors(form = document) {
+    form.querySelectorAll('.fieldError').forEach(error => error.remove());
+}
+
+function fieldSelector(name) {
+    return `[name="${String(name).replace(/"/g, '\\"')}"]`;
+}
+
+function showFieldError(name, message) {
+    const field = document.querySelector(fieldSelector(name));
+    if (!field || !message) {
+        return;
+    }
+
+    const previous = document.querySelector(`.fieldError[data-error-for="${String(name).replace(/"/g, '\\"')}"]`);
+    previous?.remove();
+
+    const error = document.createElement('span');
+    error.className = 'fieldError';
+    error.dataset.errorFor = name;
+    error.textContent = message;
+
+    const target = field.closest('label') || field;
+    target.insertAdjacentElement('afterend', error);
+}
+
+function showFieldErrors(errors = {}) {
+    Object.entries(errors).forEach(([name, message]) => showFieldError(name, message));
+}
+
+function setRoleFieldState() {
+    const role = selectedRole();
+    [
+        ['mentor', document.getElementById('mentorModal')],
+        ['employer', document.getElementById('employerModal')]
+    ].forEach(([groupRole, root]) => {
+        root?.querySelectorAll('[name]').forEach(field => {
+            field.disabled = role !== groupRole;
+            field.required = field.dataset.requiredFor === role;
+        });
+    });
+}
+
+function normalizeEmployerWebsite() {
+    const website = document.querySelector('input[name="employer_website"]');
+    if (!website || !website.value.trim()) {
+        return;
+    }
+
+    const value = website.value.trim();
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && value.includes('.')) {
+        website.value = `https://${value}`;
+    }
+}
+
+function validateActiveRoleFields() {
+    setRoleFieldState();
+    normalizeEmployerWebsite();
+    const role = selectedRole();
+    const modal = role === 'mentor'
+        ? document.getElementById('mentorModal')
+        : (role === 'employer' ? document.getElementById('employerModal') : null);
+
+    if (!modal) {
+        return true;
+    }
+
+    const controls = Array.from(modal.querySelectorAll('input, textarea, select')).filter(field => !field.disabled);
+    for (const control of controls) {
+        if (!control.checkValidity()) {
+            modal.classList.remove('hidden');
+            showFieldError(control.name, control.validationMessage);
+            control.reportValidity();
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function clearSensitiveFields(form) {
+    form.querySelectorAll('input[type="password"]').forEach(field => field.value = '');
+}
+
+async function submitAuthForm(form, actionName, button = null) {
+    clearFieldErrors(form);
+    showAuthMessage('', true);
+
+    if (actionName === 'register' && !validateActiveRoleFields()) {
+        return;
+    }
+
+    if (!form.reportValidity()) {
+        return;
+    }
+
+    const body = new FormData(form);
+    body.append(actionName, '1');
+    button?.setAttribute('disabled', 'disabled');
+
+    try {
+        const response = await fetch('auth.php', {
+            method: 'POST',
+            headers: authRequestHeaders,
+            body
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            showAuthMessage(result.message || 'Done.', true);
+            clearFieldErrors(form);
+            clearSensitiveFields(form);
+
+            if (result.redirect) {
+                window.location.href = result.redirect;
+                return;
+            }
+
+            if (actionName === 'register') {
+                form.reset();
+                document.querySelector('input[name="role"][value="student"]').checked = true;
+                document.querySelectorAll('.roleCard').forEach(card => card.classList.remove('activeRole'));
+                document.querySelector('input[name="role"][value="student"]').nextElementSibling.classList.add('activeRole');
+                closeMentorModal();
+                closeEmployerModal();
+                setRoleFieldState();
+            }
+            return;
+        }
+
+        showAuthMessage(result.message || 'Please check the highlighted fields.');
+        showFieldErrors(result.errors || {});
+        clearSensitiveFields(form);
+
+        if (result.form === 'register') {
+            showRegister();
+            const errorNames = Object.keys(result.errors || {});
+            if (errorNames.some(name => name.startsWith('mentor_'))) {
+                openMentorModal();
+            }
+            if (errorNames.some(name => name.startsWith('employer_') || ['business_permit_upload', 'company_profile_pdf'].includes(name))) {
+                openEmployerModal();
+            }
+        } else {
+            showLogin();
+        }
+    } catch (error) {
+        showAuthMessage('Unable to submit right now. Please try again.');
+    } finally {
+        button?.removeAttribute('disabled');
+    }
+}
 
 function showLogin(){
 
@@ -908,13 +1109,14 @@ function showRegister(){
 
 
 function refreshApplicationDetails() {
-    const selectedRole = document.querySelector('input[name="role"]:checked')?.value;
+    const selected = selectedRole();
+    setRoleFieldState();
 
-    if (selectedRole === 'mentor') {
+    if (selected === 'mentor') {
         openMentorModal();
     }
 
-    if (selectedRole === 'employer') {
+    if (selected === 'employer') {
         openEmployerModal();
     }
 }
@@ -932,6 +1134,7 @@ function openEmployerModal() {
 }
 
 function closeEmployerModal() {
+    normalizeEmployerWebsite();
     document.getElementById('organization_name').value = document.querySelector('input[name="employer_company_name"]')?.value || '';
     document.getElementById('application_note').value = 'Employer verification application submitted.';
     document.getElementById('employerModal')?.classList.add('hidden');
@@ -1025,6 +1228,21 @@ document
 
 });
 
+loginForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitAuthForm(loginForm, 'login', event.submitter);
+});
+
+document.getElementById('registerSubmit').addEventListener('click', () => {
+    submitAuthForm(registerForm, 'register', document.getElementById('registerSubmit'));
+});
+
+if (initialAuthForm === 'register') {
+    showRegister();
+} else {
+    showLogin();
+}
+showFieldErrors(initialAuthErrors || {});
 refreshApplicationDetails();
 
 

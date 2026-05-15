@@ -269,6 +269,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
     .btnPrimary:hover{background:#3b82f6;}
     .btnSecondary{background:#1e293b;color:#cbd5e1;border:1px solid #334155;}
     .btnSuccess{background:#16a34a;color:#fff;font-weight:700;}
+    select.inputStyle{color:#f8fafc;background-color:#020B24;}
+    select.inputStyle option{color:#0f172a;background-color:#f8fafc;}
+    select.inputStyle option:checked{color:#fff;background-color:#2563eb;}
+    select.inputStyle option:hover{color:#fff;background-color:#1d4ed8;}
 </style>
 
 <script>
