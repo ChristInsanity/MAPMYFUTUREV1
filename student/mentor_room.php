@@ -12,6 +12,13 @@ if (!$assignment) {
     redirect('mentors.php');
 }
 
+dbExecute(
+    $conn,
+    "UPDATE mentor_messages SET read_at = NOW() WHERE assignment_id = ? AND sender_id = ? AND read_at IS NULL",
+    "ii",
+    [(int)$assignment['assignment_id'], $mentorId]
+);
+
 $mentor = dbFetchOne(
     $conn,
     "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
@@ -114,6 +121,9 @@ include '../header.php';
                                     <p class="text-slate-300 mb-3"><?= nl2br(e($task['instructions'])) ?></p>
                                     <?php if ($task['resources']): ?>
                                         <div class="mb-3 text-sm text-slate-300 bg-[#162338] border border-[#334155] rounded-xl p-3"><?= nl2br(e($task['resources'])) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($task['attachment_file'])): ?>
+                                        <a href="../<?= e($task['attachment_file']) ?>" target="_blank" class="secondaryBtn px-3 py-2 text-sm mb-3"><i class="fa-solid fa-paperclip"></i> Open Attachment</a>
                                     <?php endif; ?>
                                     <form class="submissionForm grid md:grid-cols-[1fr_auto] gap-3 items-end">
                                         <?= csrf_input() ?>

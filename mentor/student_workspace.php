@@ -28,6 +28,15 @@ $assignment = dbFetchOne(
     [$mentorId, $studentId]
 );
 
+if ($assignment) {
+    dbExecute(
+        $conn,
+        "UPDATE mentor_messages SET read_at = NOW() WHERE assignment_id = ? AND sender_id = ? AND read_at IS NULL",
+        "ii",
+        [(int)$assignment['assignment_id'], $studentId]
+    );
+}
+
 $messages = $assignment ? dbFetchAll(
     $conn,
     "SELECT mm.*, u.full_name
@@ -97,7 +106,7 @@ include '../header.php';
 
         <div class="card">
             <h2 class="sectionTitle mb-4">Assign Task</h2>
-            <form id="assignTaskForm" class="space-y-4">
+            <form id="assignTaskForm" enctype="multipart/form-data" class="space-y-4">
                 <?= csrf_input() ?>
                 <input type="hidden" name="student_ids[]" value="<?= (int)$studentId ?>">
                 <select name="lesson_bundle" id="lessonBundle" class="inputStyle" required>
@@ -118,6 +127,10 @@ include '../header.php';
                     <input type="number" name="points" class="inputStyle" value="100" min="1" max="1000">
                 </div>
                 <textarea name="resources" class="inputStyle min-h-[90px]" placeholder="Resources or links"></textarea>
+                <label>
+                    <span class="text-slate-400">Attachment</span>
+                    <input type="file" name="attachment_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip" class="inputStyle mt-2 text-sm">
+                </label>
                 <button class="primaryBtn w-full" type="submit"><i class="fa-solid fa-list-check"></i> Assign Task</button>
             </form>
         </div>

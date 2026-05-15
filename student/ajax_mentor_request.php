@@ -16,5 +16,5 @@ if (!hasPremiumAccess($conn, $userId)) {
 }
 
 $ok = requestMentorEnrollment($conn, $userId, (int)($_POST['mentor_id'] ?? 0));
-jsonResponse(['success' => $ok, 'message' => $ok ? 'Mentor request sent.' : 'Unable to request this mentor.'], $ok ? 200 : 422);
+jsonResponse(['success' => $ok, 'message' => $ok ? 'Mentor request sent.' : 'This mentor is unavailable or cannot serve your current career path.'], $ok ? 200 : 422);
 ?>

@@ -35,12 +35,21 @@ include '../header.php';
     <?php foreach ($activeStudents as $student): ?>
         <article class="card">
             <div class="flex justify-between gap-3 mb-4">
-                <div>
+                <div class="flex items-start gap-4 min-w-0">
+                    <div class="w-14 h-14 rounded-xl bg-blue-600 overflow-hidden flex items-center justify-center text-xl font-bold shrink-0">
+                        <?php if (!empty($student['profile_photo'])): ?>
+                            <img src="../<?= e($student['profile_photo']) ?>" alt="<?= e($student['full_name']) ?>" class="w-full h-full object-cover">
+                        <?php else: ?>
+                            <?= e(strtoupper(substr($student['full_name'], 0, 1))) ?>
+                        <?php endif; ?>
+                    </div>
+                    <div class="min-w-0">
                     <h2 class="text-xl font-bold"><?= e($student['full_name']) ?></h2>
                     <p class="text-slate-400"><?= e($student['career_path'] ?: 'Career not set') ?></p>
                     <p class="text-sm text-blue-200 mt-1">
                         <?= $student['year_number'] && $student['semester_number'] ? 'Year ' . (int)$student['year_number'] . ' - Semester ' . (int)$student['semester_number'] : 'Year/semester not set' ?>
                     </p>
+                    </div>
                 </div>
                 <span class="badge text-blue-300 border-blue-500/30 bg-blue-500/10"><?= (int)$student['readiness_score'] ?>%</span>
             </div>
@@ -58,7 +67,11 @@ include '../header.php';
                 <p class="text-xs text-slate-500 mt-2"><?= e($student['subject_title'] ?: 'Roadmap progress') ?></p>
             </div>
             <p class="text-slate-500 text-sm mb-4">Latest activity: <?= $student['latest_activity'] ? e(date('M d, Y', strtotime($student['latest_activity']))) : 'No activity yet' ?></p>
-            <a href="student_workspace.php?student_id=<?= (int)$student['student_id'] ?>" class="primaryBtn w-full px-3 py-2 text-sm">Open</a>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <?php if ((int)$student['unread_messages'] > 0): ?><span class="badge text-yellow-200 border-yellow-500/30 bg-yellow-500/10"><?= (int)$student['unread_messages'] ?> unread</span><?php endif; ?>
+                <?php if ((int)$student['pending_submissions'] > 0): ?><span class="badge text-purple-200 border-purple-500/30 bg-purple-500/10"><?= (int)$student['pending_submissions'] ?> pending submissions</span><?php endif; ?>
+            </div>
+            <a href="student_workspace.php?student_id=<?= (int)$student['student_id'] ?>" class="primaryBtn w-full px-3 py-2 text-sm">Open Workspace</a>
         </article>
     <?php endforeach; ?>
     <?php if (count($activeStudents) === 0): ?><div class="card md:col-span-2 xl:col-span-3 text-slate-400">No active students yet.</div><?php endif; ?>

@@ -14,6 +14,7 @@ $assignments = dbFetchAll(
             COUNT(DISTINCT mt.mentor_task_id) AS assigned_tasks,
             COUNT(DISTINCT CASE WHEN mts.status = 'submitted' THEN mts.submission_id END) AS submitted_tasks,
             COUNT(DISTINCT CASE WHEN mts.status = 'approved' THEN mts.submission_id END) AS reviewed_tasks,
+            COUNT(DISTINCT CASE WHEN mm.sender_id = ma.mentor_id AND mm.read_at IS NULL THEN mm.message_id END) AS unread_messages,
             MAX(COALESCE(mts.reviewed_at, mts.submitted_at, mt.created_at, ma.assigned_at)) AS latest_activity
      FROM mentor_assignments ma
      JOIN users u ON u.user_id = ma.mentor_id
@@ -23,6 +24,7 @@ $assignments = dbFetchAll(
         AND mt.subject_id = ms.subject_id
         AND (mt.assigned_student_id IS NULL OR mt.assigned_student_id = ma.student_id)
      LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ma.student_id
+     LEFT JOIN mentor_messages mm ON mm.assignment_id = ma.assignment_id
      WHERE ma.student_id = ? AND ma.status = 'active'
      GROUP BY ma.assignment_id, ma.mentor_id, ma.status, ma.assigned_at,
               u.full_name, u.email, u.profile_photo, mp.specialization, mp.industry, mp.years_experience
@@ -61,6 +63,7 @@ include '../header.php';
                     <h2 class="text-xl font-bold truncate"><?= e($mentor['full_name']) ?></h2>
                     <p class="text-slate-400 text-sm truncate"><?= e($mentor['specialization'] ?: 'Assigned mentor') ?></p>
                     <p class="text-slate-500 text-sm"><?= e($mentor['industry'] ?: 'Industry not set') ?></p>
+                    <?php if ((int)$mentor['unread_messages'] > 0): ?><span class="badge mt-2 text-yellow-200 border-yellow-500/30 bg-yellow-500/10"><?= (int)$mentor['unread_messages'] ?> unread</span><?php endif; ?>
                 </div>
             </div>
 
@@ -84,7 +87,7 @@ include '../header.php';
                 <?= $mentor['latest_activity'] ? e(date('M d, Y', strtotime($mentor['latest_activity']))) : 'No activity yet' ?>
             </p>
 
-            <a href="mentor_room.php?id=<?= (int)$mentor['mentor_id'] ?>" class="primaryBtn w-full px-3 py-2 text-sm">Room</a>
+            <a href="mentor_room.php?id=<?= (int)$mentor['mentor_id'] ?>" class="primaryBtn w-full px-3 py-2 text-sm">Open Room</a>
         </article>
     <?php endforeach; ?>
     <?php if (count($assignments) === 0): ?>

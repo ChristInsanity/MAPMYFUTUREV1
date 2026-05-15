@@ -51,6 +51,7 @@ if ($navContext === 'admin') {
         'students' => ['Users', 'students.php', 'fa-users'],
         'analytics' => ['Analytics', 'analytics.php', 'fa-chart-pie'],
         'subscriptions' => ['Subscription Reports', 'sales_reports.php', 'fa-crown'],
+        'mentor_revenue' => ['Mentor Revenue', 'mentor_revenue.php', 'fa-hand-holding-dollar'],
         'verification' => ['Verification', 'verification_center.php', 'fa-user-check'],
     ];
 } elseif ($navContext === 'mentor') {

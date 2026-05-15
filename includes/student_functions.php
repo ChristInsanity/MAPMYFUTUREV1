@@ -483,7 +483,7 @@ function activatePremiumSubscription($conn, $userId, $planType, $amount, $durati
     ensureStudentSubscriptionsTable($conn);
     $expiresAt = date('Y-m-d H:i:s', strtotime('+' . (int)$durationMonths . ' months'));
 
-    return dbExecute(
+    $ok = dbExecute(
         $conn,
         "INSERT INTO student_subscriptions (user_id, plan, plan_type, amount, duration_months, status, payment_method, started_at, expires_at)
          VALUES (?, 'premium', ?, ?, ?, 'active', ?, NOW(), ?)
@@ -498,6 +498,142 @@ function activatePremiumSubscription($conn, $userId, $planType, $amount, $durati
             expires_at = VALUES(expires_at)",
         "isdiis",
         [$userId, $planType, $amount, $durationMonths, $paymentMethod, $expiresAt]
+    );
+
+    if ($ok) {
+        recordSubscriptionRevenueAllocation($conn, $userId);
+    }
+
+    return $ok;
+}
+
+function ensureMentorRevenueTables($conn) {
+    ensureStudentSubscriptionsTable($conn);
+    ensureMentorTables($conn);
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS platform_settings (
+            setting_key VARCHAR(120) NOT NULL,
+            setting_value VARCHAR(255) NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (setting_key)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    dbExecute(
+        $conn,
+        "INSERT INTO platform_settings (setting_key, setting_value)
+         VALUES ('mentor_platform_share_percent', '70')
+         ON DUPLICATE KEY UPDATE setting_value = setting_value"
+    );
+    dbExecute(
+        $conn,
+        "INSERT INTO platform_settings (setting_key, setting_value)
+         VALUES ('mentor_pool_share_percent', '30')
+         ON DUPLICATE KEY UPDATE setting_value = setting_value"
+    );
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS subscription_revenue_allocations (
+            allocation_id INT(11) NOT NULL AUTO_INCREMENT,
+            subscription_id INT(11) NOT NULL,
+            user_id INT(11) NOT NULL,
+            amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            platform_percent DECIMAL(5,2) NOT NULL DEFAULT 70.00,
+            mentor_pool_percent DECIMAL(5,2) NOT NULL DEFAULT 30.00,
+            platform_share DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            mentor_pool_share DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            allocated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (allocation_id),
+            UNIQUE KEY uq_revenue_allocation_subscription (subscription_id),
+            KEY idx_revenue_allocations_user (user_id),
+            KEY idx_revenue_allocations_month (allocated_at),
+            CONSTRAINT fk_revenue_allocations_subscription FOREIGN KEY (subscription_id) REFERENCES student_subscriptions(subscription_id) ON DELETE CASCADE,
+            CONSTRAINT fk_revenue_allocations_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    return true;
+}
+
+function getMentorRevenueSettings($conn) {
+    ensureMentorRevenueTables($conn);
+    $rows = dbFetchAll($conn, "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('mentor_platform_share_percent', 'mentor_pool_share_percent')");
+    $settings = [
+        'platform_percent' => 70.0,
+        'mentor_pool_percent' => 30.0
+    ];
+
+    foreach ($rows as $row) {
+        if ($row['setting_key'] === 'mentor_platform_share_percent') {
+            $settings['platform_percent'] = (float)$row['setting_value'];
+        }
+        if ($row['setting_key'] === 'mentor_pool_share_percent') {
+            $settings['mentor_pool_percent'] = (float)$row['setting_value'];
+        }
+    }
+
+    $total = $settings['platform_percent'] + $settings['mentor_pool_percent'];
+    if ($total <= 0) {
+        return ['platform_percent' => 70.0, 'mentor_pool_percent' => 30.0];
+    }
+
+    return $settings;
+}
+
+function updateMentorRevenueSettings($conn, $platformPercent, $mentorPoolPercent) {
+    ensureMentorRevenueTables($conn);
+    $platformPercent = max(0, min(100, (float)$platformPercent));
+    $mentorPoolPercent = max(0, min(100, (float)$mentorPoolPercent));
+
+    if (round($platformPercent + $mentorPoolPercent, 2) !== 100.0) {
+        return false;
+    }
+
+    dbExecute(
+        $conn,
+        "INSERT INTO platform_settings (setting_key, setting_value)
+         VALUES ('mentor_platform_share_percent', ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+        "s",
+        [(string)$platformPercent]
+    );
+    return dbExecute(
+        $conn,
+        "INSERT INTO platform_settings (setting_key, setting_value)
+         VALUES ('mentor_pool_share_percent', ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+        "s",
+        [(string)$mentorPoolPercent]
+    );
+}
+
+function recordSubscriptionRevenueAllocation($conn, $userId) {
+    ensureMentorRevenueTables($conn);
+    $subscription = getActiveSubscription($conn, $userId);
+    if (!$subscription) {
+        return false;
+    }
+
+    $settings = getMentorRevenueSettings($conn);
+    $amount = (float)$subscription['amount'];
+    $platformShare = round($amount * ($settings['platform_percent'] / 100), 2);
+    $mentorPoolShare = round($amount * ($settings['mentor_pool_percent'] / 100), 2);
+
+    return dbExecute(
+        $conn,
+        "INSERT INTO subscription_revenue_allocations
+         (subscription_id, user_id, amount, platform_percent, mentor_pool_percent, platform_share, mentor_pool_share, allocated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE
+            amount = VALUES(amount),
+            platform_percent = VALUES(platform_percent),
+            mentor_pool_percent = VALUES(mentor_pool_percent),
+            platform_share = VALUES(platform_share),
+            mentor_pool_share = VALUES(mentor_pool_share),
+            allocated_at = NOW()",
+        "iiddddd",
+        [(int)$subscription['subscription_id'], $userId, $amount, $settings['platform_percent'], $settings['mentor_pool_percent'], $platformShare, $mentorPoolShare]
     );
 }
 
@@ -1125,6 +1261,8 @@ function ensureMentorTables($conn) {
     ensureColumn($conn, 'mentor_profiles', 'behance_url', "VARCHAR(255) DEFAULT NULL");
     ensureColumn($conn, 'mentor_profiles', 'portfolio_url', "VARCHAR(255) DEFAULT NULL");
     ensureColumn($conn, 'mentor_profiles', 'experience', "TEXT DEFAULT NULL");
+    ensureColumn($conn, 'mentor_profiles', 'max_student_capacity', "INT(11) NOT NULL DEFAULT 10");
+    ensureColumn($conn, 'mentor_profiles', 'is_premium_mentor', "TINYINT(1) NOT NULL DEFAULT 0");
 
     $conn->query(
         "CREATE TABLE IF NOT EXISTS mentor_certifications (
@@ -1247,6 +1385,7 @@ function ensureMentorTables($conn) {
             title VARCHAR(180) NOT NULL,
             instructions TEXT NOT NULL,
             resources TEXT DEFAULT NULL,
+            attachment_file VARCHAR(255) DEFAULT NULL,
             deadline DATE DEFAULT NULL,
             points INT(11) NOT NULL DEFAULT 100,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1260,6 +1399,7 @@ function ensureMentorTables($conn) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
     ensureColumn($conn, 'mentor_tasks', 'assigned_student_id', "INT(11) DEFAULT NULL");
+    ensureColumn($conn, 'mentor_tasks', 'attachment_file', "VARCHAR(255) DEFAULT NULL");
 
     $conn->query(
         "CREATE TABLE IF NOT EXISTS mentor_task_submissions (
@@ -1303,6 +1443,7 @@ function ensureMentorTables($conn) {
             assignment_id INT(11) NOT NULL,
             sender_id INT(11) NOT NULL,
             message TEXT NOT NULL,
+            read_at DATETIME DEFAULT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (message_id),
             KEY idx_mentor_messages_assignment (assignment_id),
@@ -1311,6 +1452,7 @@ function ensureMentorTables($conn) {
             CONSTRAINT fk_mentor_messages_sender_runtime FOREIGN KEY (sender_id) REFERENCES users(user_id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+    ensureColumn($conn, 'mentor_messages', 'read_at', "DATETIME DEFAULT NULL");
 
     $conn->query(
         "CREATE TABLE IF NOT EXISTS mentor_portfolio_items (
@@ -1566,6 +1708,8 @@ function getMentorsForStudentCareer($conn, $studentId) {
         "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
                 mp.degree, mp.specialization, mp.industry, mp.years_experience, mp.bio,
                 mp.linkedin_url, mp.github_url, mp.behance_url, mp.portfolio_url,
+                COALESCE(mp.max_student_capacity, 10) AS max_student_capacity,
+                COALESCE(mp.is_premium_mentor, 0) AS is_premium_mentor,
                 GROUP_CONCAT(cp.title ORDER BY cp.title SEPARATOR ', ') AS assigned_careers,
                 msr.status AS request_status,
                 COUNT(DISTINCT ms.mentor_student_id) AS total_students
@@ -1579,15 +1723,33 @@ function getMentorsForStudentCareer($conn, $studentId) {
          WHERE mca.career_path_id = ?
          AND ma.assignment_id IS NULL
          AND (msr.status IS NULL OR msr.status <> 'accepted')
-         GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization,
+        GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.degree, mp.specialization,
                   mp.industry, mp.years_experience, mp.bio, mp.linkedin_url, mp.github_url, mp.behance_url,
-                  mp.portfolio_url, msr.status
+                  mp.portfolio_url, mp.max_student_capacity, mp.is_premium_mentor, msr.status
          ORDER BY u.full_name",
         "iii",
         [$studentId, $studentId, $careerPathId]
     );
 
     return $mentors;
+}
+
+function mentorHasAvailableCapacity($conn, $mentorId) {
+    ensureMentorTables($conn);
+    $row = dbFetchOne(
+        $conn,
+        "SELECT COALESCE(mp.max_student_capacity, 10) AS max_student_capacity,
+                COUNT(DISTINCT ms.student_id) AS active_students
+         FROM users u
+         LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
+         LEFT JOIN mentor_students ms ON ms.mentor_id = u.user_id AND ms.status = 'active'
+         WHERE u.user_id = ? AND u.role = 'mentor' AND u.status = 'approved'
+         GROUP BY u.user_id, mp.max_student_capacity",
+        "i",
+        [$mentorId]
+    );
+
+    return $row && (int)$row['active_students'] < (int)$row['max_student_capacity'];
 }
 
 function requestMentorEnrollment($conn, $studentId, $mentorId, $subjectId = 0) {
@@ -1600,7 +1762,7 @@ function requestMentorEnrollment($conn, $studentId, $mentorId, $subjectId = 0) {
     $careerPathId = getStudentCareerPathId($conn, $studentId);
     $mentor = dbFetchOne($conn, "SELECT user_id FROM users WHERE user_id = ? AND role = 'mentor' AND status = 'approved'", "i", [$mentorId]);
 
-    if (!$mentor || $careerPathId === 0 || !mentorCanServeCareer($conn, $mentorId, $careerPathId)) {
+    if (!$mentor || $careerPathId === 0 || !mentorCanServeCareer($conn, $mentorId, $careerPathId) || !mentorHasAvailableCapacity($conn, $mentorId)) {
         return false;
     }
 
@@ -1870,12 +2032,13 @@ function getMentorStudentsOverview($conn, $mentorId) {
 
     return dbFetchAll(
         $conn,
-        "SELECT ms.*, u.full_name, u.email, sp.career_path, sp.readiness_score,
+        "SELECT ms.*, u.full_name, u.email, u.profile_photo, sp.career_path, sp.readiness_score,
                 cs.subject_code, cs.subject_title, csem.semester_number, cy.year_number,
                 COALESCE(ss.progress, 0) AS roadmap_progress,
                 MAX(COALESCE(mts.submitted_at, mt.created_at, ms.created_at)) AS latest_activity,
                 COUNT(DISTINCT mt.mentor_task_id) AS assigned_tasks,
-                COUNT(DISTINCT CASE WHEN mts.status = 'submitted' THEN mts.submission_id END) AS pending_submissions
+                COUNT(DISTINCT CASE WHEN mts.status = 'submitted' THEN mts.submission_id END) AS pending_submissions,
+                COUNT(DISTINCT CASE WHEN mm.sender_id = ms.student_id AND mm.read_at IS NULL THEN mm.message_id END) AS unread_messages
          FROM mentor_students ms
          JOIN users u ON u.user_id = ms.student_id
          LEFT JOIN student_profiles sp ON sp.user_id = ms.student_id
@@ -1887,9 +2050,11 @@ function getMentorStudentsOverview($conn, $mentorId) {
             AND mt.subject_id = ms.subject_id
             AND (mt.assigned_student_id IS NULL OR mt.assigned_student_id = ms.student_id)
          LEFT JOIN mentor_task_submissions mts ON mts.mentor_task_id = mt.mentor_task_id AND mts.student_id = ms.student_id
+         LEFT JOIN mentor_assignments ma ON ma.mentor_id = ms.mentor_id AND ma.student_id = ms.student_id AND ma.status = 'active'
+         LEFT JOIN mentor_messages mm ON mm.assignment_id = ma.assignment_id
          WHERE ms.mentor_id = ?
          GROUP BY ms.mentor_student_id, ms.mentor_id, ms.student_id, ms.subject_id, ms.status, ms.created_at,
-                  u.full_name, u.email, sp.career_path, sp.readiness_score,
+                  u.full_name, u.email, u.profile_photo, sp.career_path, sp.readiness_score,
                   cs.subject_code, cs.subject_title, csem.semester_number, cy.year_number, ss.progress
          ORDER BY latest_activity DESC",
         "i",
@@ -1930,7 +2095,7 @@ function getMentorAssignableLessons($conn, $mentorId, $studentId = 0) {
     );
 }
 
-function createMentorTask($conn, $mentorId, $studentId, $pathId, $subjectId, $lessonId, $title, $instructions, $resources, $deadline, $points) {
+function createMentorTask($conn, $mentorId, $studentId, $pathId, $subjectId, $lessonId, $title, $instructions, $resources, $deadline, $points, $attachmentPath = null) {
     ensureMentorTables($conn);
 
     $allowed = dbFetchOne(
@@ -1966,10 +2131,10 @@ function createMentorTask($conn, $mentorId, $studentId, $pathId, $subjectId, $le
 
     return dbExecute(
         $conn,
-        "INSERT INTO mentor_tasks (mentor_id, assigned_student_id, path_id, subject_id, lesson_id, title, instructions, resources, deadline, points)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        "iiiiissssi",
-        [$mentorId, $studentId > 0 ? $studentId : null, $pathId, $subjectId, $lessonId, $title, $instructions, $resources, $deadline ?: null, $points]
+        "INSERT INTO mentor_tasks (mentor_id, assigned_student_id, path_id, subject_id, lesson_id, title, instructions, resources, attachment_file, deadline, points)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "iiiiisssssi",
+        [$mentorId, $studentId > 0 ? $studentId : null, $pathId, $subjectId, $lessonId, $title, $instructions, $resources, $attachmentPath, $deadline ?: null, $points]
     );
 }
 
@@ -2670,6 +2835,73 @@ function getSalesReportData($conn) {
         'mentor_revenue' => $mentorRevenue,
         'job_postings' => $jobPostings,
         'hired_students' => $hiredStudents
+    ];
+}
+
+function getMentorRevenueDashboardData($conn) {
+    ensureMentorRevenueTables($conn);
+    $settings = getMentorRevenueSettings($conn);
+
+    $pool = dbFetchOne(
+        $conn,
+        "SELECT COALESCE(SUM(mentor_pool_share), 0) AS mentor_pool,
+                COALESCE(SUM(platform_share), 0) AS platform_share,
+                COALESCE(SUM(amount), 0) AS gross_revenue
+         FROM subscription_revenue_allocations
+         WHERE allocated_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')"
+    );
+
+    $activeAssignmentCount = dbFetchOne(
+        $conn,
+        "SELECT COUNT(*) AS total
+         FROM mentor_assignments ma
+         JOIN student_subscriptions ss ON ss.user_id = ma.student_id
+            AND ss.status = 'active'
+            AND (ss.expires_at IS NULL OR ss.expires_at > NOW())
+         WHERE ma.status = 'active'"
+    );
+
+    $mentorPool = (float)($pool['mentor_pool'] ?? 0);
+    $activePremiumAssignments = max(0, (int)($activeAssignmentCount['total'] ?? 0));
+    $perStudentShare = $activePremiumAssignments > 0 ? $mentorPool / $activePremiumAssignments : 0;
+
+    $mentors = dbFetchAll(
+        $conn,
+        "SELECT u.user_id, u.full_name, u.email, u.profile_photo,
+                mp.specialization,
+                COALESCE(mp.max_student_capacity, 10) AS max_student_capacity,
+                COUNT(DISTINCT CASE WHEN ma.status = 'active' THEN ma.student_id END) AS active_students,
+                COUNT(DISTINCT CASE WHEN ss.subscription_id IS NOT NULL THEN ma.student_id END) AS active_premium_students
+         FROM users u
+         LEFT JOIN mentor_profiles mp ON mp.user_id = u.user_id
+         LEFT JOIN mentor_assignments ma ON ma.mentor_id = u.user_id AND ma.status = 'active'
+         LEFT JOIN student_subscriptions ss ON ss.user_id = ma.student_id
+            AND ss.status = 'active'
+            AND (ss.expires_at IS NULL OR ss.expires_at > NOW())
+         WHERE u.role = 'mentor' AND u.status = 'approved'
+         GROUP BY u.user_id, u.full_name, u.email, u.profile_photo, mp.specialization, mp.max_student_capacity
+         ORDER BY active_premium_students DESC, u.full_name"
+    );
+
+    foreach ($mentors as &$mentor) {
+        $monthlyRevenue = round((int)$mentor['active_premium_students'] * $perStudentShare, 2);
+        $mentor['monthly_revenue'] = $monthlyRevenue;
+        $mentor['pending_payout'] = $monthlyRevenue;
+        $mentor['is_available'] = (int)$mentor['active_students'] < (int)$mentor['max_student_capacity'];
+    }
+    unset($mentor);
+
+    return [
+        'settings' => $settings,
+        'totals' => [
+            'gross_revenue' => (float)($pool['gross_revenue'] ?? 0),
+            'platform_share' => (float)($pool['platform_share'] ?? 0),
+            'mentor_pool' => $mentorPool,
+            'active_premium_assignments' => $activePremiumAssignments,
+            'per_student_share' => round($perStudentShare, 2),
+            'pending_payouts' => round(array_sum(array_column($mentors, 'pending_payout')), 2)
+        ],
+        'mentors' => $mentors
     ];
 }
 
