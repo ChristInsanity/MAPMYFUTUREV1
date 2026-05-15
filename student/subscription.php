@@ -113,7 +113,7 @@ include '../header.php';
                     </div>
                 </div>
                 <p class="text-slate-400 text-sm mt-3">Simulation only. No real payment gateway will be contacted.</p>
-                <button type="submit" id="confirmPayment" class="primaryBtn w-full mt-4">Start AI Processing</button>
+                <button type="submit" id="confirmPayment" class="primaryBtn w-full mt-4">PaymentProcessing</button>
             </div>
 
             <div id="loadingStep" class="hidden text-center py-8">
