@@ -31,11 +31,6 @@ $mentor = dbFetchOne(
 );
 $messages = getMentorConversation($conn, $studentId, $mentorId);
 $tasks = getMentorRoomTasks($conn, $studentId, $mentorId);
-$tasksByLesson = [];
-
-foreach ($tasks as $task) {
-    $tasksByLesson[$task['lesson_title']][] = $task;
-}
 
 $pageTitle = 'Mentor Room';
 $activePage = 'my_mentor';
@@ -61,135 +56,214 @@ include '../header.php';
         <div>
             <p class="text-blue-300 font-semibold mb-1">Mentor room</p>
             <h1 class="text-3xl lg:text-4xl font-bold"><?= e($mentor['full_name']) ?></h1>
-            <p class="text-slate-400"><?= e($mentor['specialization'] ?: 'Mentor') ?> · <?= (int)($mentor['years_experience'] ?? 0) ?> years</p>
+            <p class="text-slate-400"><?= e($mentor['specialization'] ?: 'Mentor') ?> - <?= (int)($mentor['years_experience'] ?? 0) ?> years</p>
         </div>
     </div>
 </div>
 
+<div id="roomToast" class="hidden fixed right-4 top-24 z-[70] rounded-xl border px-4 py-3 text-sm shadow-2xl"></div>
+
 <div class="grid lg:grid-cols-3 gap-8">
     <section class="lg:col-span-2 space-y-6">
         <div class="card">
-            <div class="flex items-center justify-between mb-5">
-                <h2 class="sectionTitle">Ask Question</h2>
-                <span class="badge text-slate-300">Mentor replies enabled later</span>
+            <div class="flex items-center justify-between gap-4 mb-5">
+                <h2 class="sectionTitle">Conversation</h2>
+                <button type="button" id="openQuestionModal" class="primaryBtn"><i class="fa-solid fa-circle-question"></i> Ask Question</button>
             </div>
-            <form id="questionForm" class="space-y-4">
-                <?= csrf_input() ?>
-                <input type="hidden" name="mentor_id" value="<?= (int)$mentorId ?>">
-                <textarea name="message" class="inputStyle min-h-[120px]" placeholder="Ask about this lesson, your portfolio, or your next step..." required></textarea>
-                <button class="primaryBtn" type="submit"><i class="fa-solid fa-paper-plane"></i> Send Question</button>
-            </form>
-        </div>
-
-        <div class="card">
-            <h2 class="sectionTitle mb-5">Thread</h2>
-            <div id="threadList" class="space-y-3">
+            <div id="threadList" class="space-y-4 max-h-[520px] overflow-y-auto pr-1">
                 <?php foreach ($messages as $message): ?>
-                    <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
-                        <div class="flex justify-between gap-3 mb-2 text-sm">
-                            <span class="font-bold text-blue-200"><?= e($message['full_name']) ?></span>
-                            <span class="text-slate-500"><?= e(date('M d, Y g:i A', strtotime($message['created_at']))) ?></span>
+                    <?php $isStudentMessage = (int)$message['sender_id'] === $studentId; ?>
+                    <div class="messageRow flex gap-3 <?= $isStudentMessage ? 'justify-end' : 'justify-start' ?>">
+                        <?php if (!$isStudentMessage): ?>
+                            <div class="messageAvatar"><?= e(strtoupper(substr($message['full_name'], 0, 1))) ?></div>
+                        <?php endif; ?>
+                        <div class="max-w-[78%]">
+                            <div class="flex items-center gap-2 mb-1 <?= $isStudentMessage ? 'justify-end' : '' ?>">
+                                <span class="text-sm font-bold <?= $isStudentMessage ? 'text-green-200' : 'text-blue-200' ?>"><?= e($message['full_name']) ?></span>
+                                <span class="text-xs text-slate-500"><?= e(date('M d, Y g:i A', strtotime($message['created_at']))) ?></span>
+                            </div>
+                            <div class="messageBubble <?= $isStudentMessage ? 'isStudent' : 'isMentor' ?>"><?= nl2br(e($message['message'])) ?></div>
                         </div>
-                        <p class="text-slate-300"><?= nl2br(e($message['message'])) ?></p>
+                        <?php if ($isStudentMessage): ?>
+                            <div class="messageAvatar isStudent"><?= e(strtoupper(substr($_SESSION['name'] ?? 'You', 0, 1))) ?></div>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
                 <?php if (count($messages) === 0): ?>
-                    <p id="emptyThread" class="text-slate-400">No questions yet. Start the thread above.</p>
+                    <p id="emptyThread" class="text-slate-400">No questions yet.</p>
                 <?php endif; ?>
             </div>
         </div>
 
         <div class="card">
             <h2 class="sectionTitle mb-5">Assigned Tasks</h2>
-            <div class="space-y-6">
-                <?php foreach ($tasksByLesson as $lessonTitle => $lessonTasks): ?>
-                    <div>
-                        <h3 class="text-lg font-bold mb-3 text-blue-200"><?= e($lessonTitle) ?></h3>
-                        <div class="space-y-3">
-                            <?php foreach ($lessonTasks as $task): ?>
-                                <?php $status = $task['submission_status'] ?: 'assigned'; ?>
-                                <article class="bg-[#020B24] border border-[#334155] rounded-xl p-4 taskCard" data-task-id="<?= (int)$task['mentor_task_id'] ?>">
-                                    <div class="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-3">
-                                        <div>
-                                            <h4 class="font-bold"><?= e($task['title']) ?></h4>
-                                            <p class="text-slate-500 text-sm"><?= $task['deadline'] ? 'Due ' . e(date('M d, Y', strtotime($task['deadline']))) : 'No deadline' ?> · <?= (int)$task['points'] ?> pts</p>
-                                        </div>
-                                        <span class="badge taskStatus <?= e(statusClass($status === 'approved' ? 'completed' : ($status === 'submitted' ? 'submitted' : 'available'))) ?>">
-                                            <?= e(readableStatus($status)) ?>
-                                        </span>
-                                    </div>
-                                    <p class="text-slate-300 mb-3"><?= nl2br(e($task['instructions'])) ?></p>
-                                    <?php if ($task['resources']): ?>
-                                        <div class="mb-3 text-sm text-slate-300 bg-[#162338] border border-[#334155] rounded-xl p-3"><?= nl2br(e($task['resources'])) ?></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($task['attachment_file'])): ?>
-                                        <a href="../<?= e($task['attachment_file']) ?>" target="_blank" class="secondaryBtn px-3 py-2 text-sm mb-3"><i class="fa-solid fa-paperclip"></i> Open Attachment</a>
-                                    <?php endif; ?>
-                                    <form class="submissionForm grid md:grid-cols-[1fr_auto] gap-3 items-end">
-                                        <?= csrf_input() ?>
-                                        <input type="hidden" name="mentor_task_id" value="<?= (int)$task['mentor_task_id'] ?>">
-                                        <div class="space-y-3">
-                                            <input type="file" name="submission_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full text-sm text-slate-200 file:bg-slate-800 file:border file:border-slate-700 file:rounded-xl file:px-4 file:py-2">
-                                            <input type="url" name="submission_link" class="inputStyle" placeholder="Optional project link">
-                                            <textarea name="notes" class="inputStyle min-h-[90px]" placeholder="Notes for your mentor"></textarea>
-                                        </div>
-                                        <button class="primaryBtn" type="submit"><i class="fa-solid fa-upload"></i> Upload</button>
-                                    </form>
-                                </article>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (count($tasksByLesson) === 0): ?>
-                    <p class="text-slate-400">No assigned tasks from this mentor yet.</p>
-                <?php endif; ?>
+            <div class="taskTableWrap">
+                <table class="taskTable">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Task Title</th>
+                            <th>Due Date</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($tasks as $task): ?>
+                            <?php $status = $task['submission_status'] ?: 'assigned'; ?>
+                            <tr class="taskRow" data-task-id="<?= (int)$task['mentor_task_id'] ?>">
+                                <td><?= e($task['subject_title']) ?></td>
+                                <td class="font-semibold"><?= e($task['title']) ?></td>
+                                <td><?= $task['deadline'] ? e(date('M d, Y', strtotime($task['deadline']))) : 'No deadline' ?></td>
+                                <td><span class="badge taskStatus <?= e(statusClass($status === 'approved' ? 'completed' : ($status === 'submitted' ? 'submitted' : 'available'))) ?>"><?= e(readableStatus($status)) ?></span></td>
+                                <td><button type="button" class="secondaryBtn px-3 py-2 text-sm openTaskModal" data-task-id="<?= (int)$task['mentor_task_id'] ?>">View</button></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php if (count($tasks) === 0): ?>
+                            <tr><td colspan="5" class="text-slate-400">No assigned tasks from this mentor yet.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </section>
 
     <aside class="space-y-6">
-        <div class="card">
-            <h2 class="sectionTitle mb-5">Progress Timeline</h2>
-            <div class="space-y-4">
+        <details class="card">
+            <summary class="cursor-pointer sectionTitle list-none flex items-center justify-between">
+                <span>Progress Timeline</span>
+                <i class="fa-solid fa-chevron-down text-sm text-slate-400"></i>
+            </summary>
+            <div class="space-y-3 mt-5">
                 <?php foreach ($tasks as $task): ?>
-                    <div class="border-l-2 border-blue-500/40 pl-4">
-                        <p class="font-semibold"><?= e($task['title']) ?></p>
-                        <p class="text-sm text-slate-400">Task assigned <?= e(date('M d, Y', strtotime($task['created_at']))) ?></p>
-                        <?php if ($task['submitted_at']): ?>
-                            <p class="text-sm text-slate-400">Submitted <?= e(date('M d, Y', strtotime($task['submitted_at']))) ?></p>
-                        <?php endif; ?>
-                        <?php if ($task['reviewed_at']): ?>
-                            <p class="text-sm text-slate-400">Reviewed <?= e(date('M d, Y', strtotime($task['reviewed_at']))) ?></p>
-                        <?php endif; ?>
-                        <?php if ($task['submission_status'] === 'approved'): ?>
-                            <p class="text-sm text-green-300">Completed</p>
-                        <?php endif; ?>
+                    <div class="border-l-2 border-blue-500/40 pl-4 py-1">
+                        <p class="font-semibold truncate"><?= e($task['title']) ?></p>
+                        <p class="text-xs text-slate-400">Assigned <?= e(date('M d, Y', strtotime($task['created_at']))) ?></p>
+                        <?php if ($task['submitted_at']): ?><p class="text-xs text-slate-400">Submitted <?= e(date('M d, Y', strtotime($task['submitted_at']))) ?></p><?php endif; ?>
+                        <?php if ($task['reviewed_at']): ?><p class="text-xs text-slate-400">Reviewed <?= e(date('M d, Y', strtotime($task['reviewed_at']))) ?></p><?php endif; ?>
                     </div>
                 <?php endforeach; ?>
                 <?php if (count($tasks) === 0): ?><p class="text-slate-400">Timeline begins once your mentor assigns work.</p><?php endif; ?>
             </div>
-        </div>
+        </details>
     </aside>
 </div>
 
+<div id="questionModal" class="hidden fixed inset-0 z-[60] bg-black/70 px-4 py-8">
+    <div class="max-w-lg mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-2xl font-bold">Ask Question</h2>
+            <button type="button" class="secondaryBtn px-3 py-2 closeModal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="questionForm" class="space-y-4">
+            <?= csrf_input() ?>
+            <input type="hidden" name="mentor_id" value="<?= (int)$mentorId ?>">
+            <textarea name="message" class="inputStyle min-h-[150px]" placeholder="Ask about a task, your portfolio, or your next step..." required></textarea>
+            <button class="primaryBtn w-full" type="submit"><i class="fa-solid fa-paper-plane"></i> Send Question</button>
+        </form>
+    </div>
+</div>
+
+<?php foreach ($tasks as $task): ?>
+    <div id="taskModal<?= (int)$task['mentor_task_id'] ?>" class="taskModal hidden fixed inset-0 z-[60] bg-black/70 px-4 py-8 overflow-y-auto">
+        <div class="max-w-2xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
+            <div class="flex items-start justify-between gap-4 mb-5">
+                <div>
+                    <p class="text-blue-300 text-sm font-semibold mb-1"><?= e($task['subject_title']) ?></p>
+                    <h2 class="text-2xl font-bold"><?= e($task['title']) ?></h2>
+                    <p class="text-slate-500 text-sm"><?= $task['deadline'] ? 'Due ' . e(date('M d, Y', strtotime($task['deadline']))) : 'No deadline' ?> - <?= (int)$task['points'] ?> pts</p>
+                </div>
+                <button type="button" class="secondaryBtn px-3 py-2 closeModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
+                    <p class="text-slate-400 mb-2">Instructions</p>
+                    <p class="text-slate-300"><?= nl2br(e($task['instructions'])) ?></p>
+                </div>
+                <?php if ($task['resources']): ?>
+                    <div class="bg-[#020B24] border border-[#334155] rounded-xl p-4">
+                        <p class="text-slate-400 mb-2">Resources</p>
+                        <p class="text-slate-300"><?= nl2br(e($task['resources'])) ?></p>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($task['attachment_file'])): ?>
+                    <a href="../<?= e($task['attachment_file']) ?>" target="_blank" class="secondaryBtn"><i class="fa-solid fa-paperclip"></i> Open Attachment</a>
+                <?php endif; ?>
+                <form class="submissionForm space-y-3" data-task-id="<?= (int)$task['mentor_task_id'] ?>">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="mentor_task_id" value="<?= (int)$task['mentor_task_id'] ?>">
+                    <input type="file" name="submission_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full text-sm text-slate-200 file:bg-slate-800 file:border file:border-slate-700 file:rounded-xl file:px-4 file:py-2">
+                    <input type="url" name="submission_link" class="inputStyle" placeholder="Optional project link">
+                    <textarea name="notes" class="inputStyle min-h-[100px]" placeholder="Notes for your mentor"></textarea>
+                    <button class="primaryBtn w-full" type="submit"><i class="fa-solid fa-upload"></i> Submit Work</button>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php endforeach; ?>
+
+<style>
+    .messageAvatar{width:36px;height:36px;border-radius:999px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto;}
+    .messageAvatar.isStudent{background:#16a34a;}
+    .messageBubble{border:1px solid #334155;padding:12px 14px;border-radius:14px;line-height:1.6;}
+    .messageBubble.isMentor{background:#020B24;color:#cbd5e1;}
+    .messageBubble.isStudent{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.28);color:#dcfce7;}
+    .taskTableWrap{max-height:520px;overflow:auto;border:1px solid #334155;border-radius:14px;}
+    .taskTable{width:100%;border-collapse:separate;border-spacing:0;}
+    .taskTable th{position:sticky;top:0;background:#0f172a;color:#94a3b8;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding:12px 14px;z-index:1;}
+    .taskTable td{height:64px;padding:10px 14px;border-top:1px solid #334155;color:#cbd5e1;vertical-align:middle;}
+</style>
+
 <script>
+const questionModal = document.getElementById('questionModal');
+const threadList = document.getElementById('threadList');
+const roomToast = document.getElementById('roomToast');
+
+function showRoomToast(message, success = true) {
+    roomToast.textContent = message;
+    roomToast.className = `fixed right-4 top-24 z-[70] rounded-xl border px-4 py-3 text-sm shadow-2xl ${success ? 'bg-green-500/10 border-green-500 text-green-200' : 'bg-red-500/10 border-red-500 text-red-200'}`;
+    roomToast.classList.remove('hidden');
+    setTimeout(() => roomToast.classList.add('hidden'), 2600);
+}
+
+function closeAllModals() {
+    document.querySelectorAll('#questionModal, .taskModal').forEach(modal => modal.classList.add('hidden'));
+}
+
+document.getElementById('openQuestionModal').addEventListener('click', () => questionModal.classList.remove('hidden'));
+document.querySelectorAll('.closeModal').forEach(button => button.addEventListener('click', closeAllModals));
+document.querySelectorAll('.openTaskModal').forEach(button => {
+    button.addEventListener('click', () => document.getElementById(`taskModal${button.dataset.taskId}`)?.classList.remove('hidden'));
+});
+
+function scrollThreadToLatest() {
+    threadList.scrollTop = threadList.scrollHeight;
+}
+scrollThreadToLatest();
+
 document.getElementById('questionForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const result = await window.mmfPost('ajax_mentor_question.php', new FormData(form), true);
 
     if (!result.success) {
-        alert(result.message || 'Unable to send.');
+        showRoomToast(result.message || 'Unable to send.', false);
         return;
     }
 
     document.getElementById('emptyThread')?.remove();
     const item = document.createElement('div');
-    item.className = 'bg-[#020B24] border border-[#334155] rounded-xl p-4';
-    item.innerHTML = `<div class="flex justify-between gap-3 mb-2 text-sm"><span class="font-bold text-blue-200">${result.question.sender}</span><span class="text-slate-500">${result.question.created_at}</span></div><p class="text-slate-300"></p>`;
-    item.querySelector('p').textContent = result.question.message;
-    document.getElementById('threadList').appendChild(item);
+    item.className = 'messageRow flex gap-3 justify-end';
+    item.innerHTML = `<div class="max-w-[78%]"><div class="flex items-center gap-2 mb-1 justify-end"><span class="text-sm font-bold text-green-200"></span><span class="text-xs text-slate-500"></span></div><div class="messageBubble isStudent"></div></div><div class="messageAvatar isStudent"></div>`;
+    item.querySelector('.text-green-200').textContent = result.question.sender;
+    item.querySelector('.text-slate-500').textContent = result.question.created_at;
+    item.querySelector('.messageBubble').textContent = result.question.message;
+    item.querySelector('.messageAvatar').textContent = (result.question.sender || 'Y').charAt(0).toUpperCase();
+    threadList.appendChild(item);
     form.reset();
+    closeAllModals();
+    showRoomToast('Question sent.');
+    scrollThreadToLatest();
 });
 
 document.querySelectorAll('.submissionForm').forEach(form => {
@@ -200,15 +274,20 @@ document.querySelectorAll('.submissionForm').forEach(form => {
         button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading';
         const result = await window.mmfPost('ajax_task_submission.php', new FormData(form), true);
         button.disabled = false;
-        button.innerHTML = '<i class="fa-solid fa-upload"></i> Upload';
+        button.innerHTML = '<i class="fa-solid fa-upload"></i> Submit Work';
 
         if (result.success) {
-            const status = form.closest('.taskCard').querySelector('.taskStatus');
-            status.className = 'badge taskStatus text-purple-300 border-purple-500/30 bg-purple-500/10';
-            status.textContent = 'Submitted';
+            const row = document.querySelector(`.taskRow[data-task-id="${form.dataset.taskId}"]`);
+            const status = row?.querySelector('.taskStatus');
+            if (status) {
+                status.className = 'badge taskStatus text-purple-300 border-purple-500/30 bg-purple-500/10';
+                status.textContent = 'Submitted';
+            }
             form.reset();
+            closeAllModals();
+            showRoomToast('Submission uploaded.');
         } else {
-            alert(result.message || 'Upload failed.');
+            showRoomToast(result.message || 'Upload failed.', false);
         }
     });
 });

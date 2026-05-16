@@ -33,7 +33,7 @@ include '../header.php';
 
 <section id="activeTab" class="tabPanel grid md:grid-cols-2 xl:grid-cols-3 gap-5">
     <?php foreach ($activeStudents as $student): ?>
-        <article class="card">
+        <article class="card h-[390px] flex flex-col">
             <div class="flex justify-between gap-3 mb-4">
                 <div class="flex items-start gap-4 min-w-0">
                     <div class="w-14 h-14 rounded-xl bg-blue-600 overflow-hidden flex items-center justify-center text-xl font-bold shrink-0">
@@ -44,8 +44,8 @@ include '../header.php';
                         <?php endif; ?>
                     </div>
                     <div class="min-w-0">
-                    <h2 class="text-xl font-bold"><?= e($student['full_name']) ?></h2>
-                    <p class="text-slate-400"><?= e($student['career_path'] ?: 'Career not set') ?></p>
+                    <h2 class="text-xl font-bold truncate"><?= e($student['full_name']) ?></h2>
+                    <p class="text-slate-400 truncate"><?= e($student['career_path'] ?: 'Career not set') ?></p>
                     <p class="text-sm text-blue-200 mt-1">
                         <?= $student['year_number'] && $student['semester_number'] ? 'Year ' . (int)$student['year_number'] . ' - Semester ' . (int)$student['semester_number'] : 'Year/semester not set' ?>
                     </p>
@@ -58,7 +58,7 @@ include '../header.php';
             </div>
             <div class="bg-[#020B24] border border-[#334155] rounded-xl p-3 mb-4">
                 <div class="flex justify-between gap-3 text-sm mb-2">
-                    <span class="text-slate-400"><?= e($student['subject_code'] ?: 'Current subject') ?></span>
+                    <span class="text-slate-400 truncate"><?= e($student['subject_code'] ?: 'Current subject') ?></span>
                     <span class="font-bold text-blue-200"><?= (int)$student['roadmap_progress'] ?>%</span>
                 </div>
                 <div class="bg-slate-900 h-2 rounded-full overflow-hidden">
@@ -66,11 +66,12 @@ include '../header.php';
                 </div>
                 <p class="text-xs text-slate-500 mt-2"><?= e($student['subject_title'] ?: 'Roadmap progress') ?></p>
             </div>
-            <p class="text-slate-500 text-sm mb-4">Latest activity: <?= $student['latest_activity'] ? e(date('M d, Y', strtotime($student['latest_activity']))) : 'No activity yet' ?></p>
+            <p class="text-slate-500 text-sm mb-4 truncate">Latest activity: <?= $student['latest_activity'] ? e(date('M d, Y', strtotime($student['latest_activity']))) : 'No activity yet' ?></p>
             <div class="flex flex-wrap gap-2 mb-4">
                 <?php if ((int)$student['unread_messages'] > 0): ?><span class="badge text-yellow-200 border-yellow-500/30 bg-yellow-500/10"><?= (int)$student['unread_messages'] ?> unread</span><?php endif; ?>
                 <?php if ((int)$student['pending_submissions'] > 0): ?><span class="badge text-purple-200 border-purple-500/30 bg-purple-500/10"><?= (int)$student['pending_submissions'] ?> pending submissions</span><?php endif; ?>
             </div>
+            <div class="grow"></div>
             <a href="student_workspace.php?student_id=<?= (int)$student['student_id'] ?>" class="primaryBtn w-full px-3 py-2 text-sm">Open Workspace</a>
         </article>
     <?php endforeach; ?>

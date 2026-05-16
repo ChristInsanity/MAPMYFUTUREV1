@@ -24,6 +24,7 @@ if ($action === 'duplicate') {
 
 $statusMap = [
     'open' => 'open',
+    'restore' => 'open',
     'close' => 'closed',
     'archive' => 'archived',
     'draft' => 'draft'

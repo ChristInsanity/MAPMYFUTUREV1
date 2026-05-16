@@ -15,5 +15,14 @@ if (sanitize($_POST['title'] ?? '') === '' || sanitize($_POST['required_skills']
 
 $ok = createEmployerJob($conn, (int)$_SESSION['user_id'], $_POST);
 $message = (int)($_POST['job_id'] ?? 0) > 0 ? 'Job post updated.' : 'Job post created.';
-jsonResponse(['success' => $ok, 'message' => $ok ? $message : 'Unable to save job post.'], $ok ? 200 : 422);
+$jobId = (int)($_POST['job_id'] ?? 0);
+if ($ok && $jobId <= 0) {
+    $jobId = (int)$conn->insert_id;
+}
+
+jsonResponse([
+    'success' => $ok,
+    'message' => $ok ? $message : 'Unable to save job post.',
+    'job_id' => $jobId
+], $ok ? 200 : 422);
 ?>

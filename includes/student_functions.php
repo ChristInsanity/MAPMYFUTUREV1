@@ -523,13 +523,13 @@ function ensureMentorRevenueTables($conn) {
     dbExecute(
         $conn,
         "INSERT INTO platform_settings (setting_key, setting_value)
-         VALUES ('mentor_platform_share_percent', '70')
+         VALUES ('mentor_platform_share_percent', '30')
          ON DUPLICATE KEY UPDATE setting_value = setting_value"
     );
     dbExecute(
         $conn,
         "INSERT INTO platform_settings (setting_key, setting_value)
-         VALUES ('mentor_pool_share_percent', '30')
+         VALUES ('mentor_pool_share_percent', '70')
          ON DUPLICATE KEY UPDATE setting_value = setting_value"
     );
 
@@ -539,8 +539,8 @@ function ensureMentorRevenueTables($conn) {
             subscription_id INT(11) NOT NULL,
             user_id INT(11) NOT NULL,
             amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-            platform_percent DECIMAL(5,2) NOT NULL DEFAULT 70.00,
-            mentor_pool_percent DECIMAL(5,2) NOT NULL DEFAULT 30.00,
+            platform_percent DECIMAL(5,2) NOT NULL DEFAULT 30.00,
+            mentor_pool_percent DECIMAL(5,2) NOT NULL DEFAULT 70.00,
             platform_share DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             mentor_pool_share DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             allocated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -560,8 +560,8 @@ function getMentorRevenueSettings($conn) {
     ensureMentorRevenueTables($conn);
     $rows = dbFetchAll($conn, "SELECT setting_key, setting_value FROM platform_settings WHERE setting_key IN ('mentor_platform_share_percent', 'mentor_pool_share_percent')");
     $settings = [
-        'platform_percent' => 70.0,
-        'mentor_pool_percent' => 30.0
+        'platform_percent' => 30.0,
+        'mentor_pool_percent' => 70.0
     ];
 
     foreach ($rows as $row) {
@@ -575,7 +575,7 @@ function getMentorRevenueSettings($conn) {
 
     $total = $settings['platform_percent'] + $settings['mentor_pool_percent'];
     if ($total <= 0) {
-        return ['platform_percent' => 70.0, 'mentor_pool_percent' => 30.0];
+        return ['platform_percent' => 30.0, 'mentor_pool_percent' => 70.0];
     }
 
     return $settings;
@@ -2596,8 +2596,19 @@ function createEmployerJob($conn, $employerId, $data) {
     );
 }
 
-function getEmployerJobs($conn, $employerId) {
+function getEmployerJobs($conn, $employerId, $postingStatusFilter = null) {
     ensureMentorTables($conn);
+    $statusSql = "";
+    $types = "i";
+    $params = [$employerId];
+
+    if ($postingStatusFilter !== null) {
+        $statusSql = " AND jp.posting_status = ?";
+        $types .= "s";
+        $params[] = $postingStatusFilter;
+    } else {
+        $statusSql = " AND jp.posting_status <> 'archived'";
+    }
 
     $jobs = dbFetchAll(
         $conn,
@@ -2625,10 +2636,10 @@ function getEmployerJobs($conn, $employerId) {
             FROM job_applications
             GROUP BY job_id
          ) app ON app.job_id = jp.job_id
-         WHERE jp.employer_id = ?
+         WHERE jp.employer_id = ? {$statusSql}
          ORDER BY jp.created_at DESC",
-        "i",
-        [$employerId]
+        $types,
+        $params
     );
 
     foreach ($jobs as $index => $job) {

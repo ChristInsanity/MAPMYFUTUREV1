@@ -129,9 +129,12 @@ include '../header.php';
 
             <div id="successStep" class="hidden text-center py-8">
                 <i class="fa-solid fa-circle-check text-5xl text-green-300 mb-4"></i>
-                <h2 class="text-2xl font-bold mb-2">Premium activated successfully.</h2>
+                <h2 class="text-2xl font-bold mb-2">Premium Activated Successfully</h2>
                 <p class="text-slate-400 mb-5">Mentor access and premium learning are now active.</p>
-                <a href="dashboard.php" class="primaryBtn">Back to Dashboard</a>
+                <div class="grid grid-cols-2 gap-3">
+                    <a href="find_mentors.php" class="primaryBtn">Find Mentor</a>
+                    <a href="dashboard.php" class="secondaryBtn">Go Dashboard</a>
+                </div>
             </div>
         </form>
     </div>
@@ -204,15 +207,12 @@ document.getElementById('paymentForm').addEventListener('submit', async (event) 
     setTimeout(() => document.getElementById('loadingBar').style.width = '65%', 1000);
     setTimeout(() => document.getElementById('loadingBar').style.width = '100%', 2400);
 
-    const paymentRequest = window.mmfPost('ajax_subscription.php', new FormData(event.currentTarget), true)
-        .catch(() => ({success: false, message: 'Unable to activate premium. Please try again.'}));
-    const delay = new Promise(resolve => setTimeout(resolve, 3000));
-    const result = await Promise.race([
-        paymentRequest,
-        delay.then(() => ({success: false, message: 'Payment processing timed out. Please try again.'}))
+    const [result] = await Promise.all([
+        window.mmfPost('ajax_subscription.php', new FormData(event.currentTarget), true)
+            .catch(() => ({success: false, message: 'Unable to activate premium. Please try again.'})),
+        new Promise(resolve => setTimeout(resolve, 3000))
     ]);
 
-    await delay;
     loadingStep.classList.add('hidden');
     if (result.success) {
         successStep.classList.remove('hidden');

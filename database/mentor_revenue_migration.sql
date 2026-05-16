@@ -19,11 +19,11 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO platform_settings (setting_key, setting_value)
-VALUES ('mentor_platform_share_percent', '70')
+VALUES ('mentor_platform_share_percent', '30')
 ON DUPLICATE KEY UPDATE setting_value = setting_value;
 
 INSERT INTO platform_settings (setting_key, setting_value)
-VALUES ('mentor_pool_share_percent', '30')
+VALUES ('mentor_pool_share_percent', '70')
 ON DUPLICATE KEY UPDATE setting_value = setting_value;
 
 CREATE TABLE IF NOT EXISTS subscription_revenue_allocations (
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS subscription_revenue_allocations (
     subscription_id INT(11) NOT NULL,
     user_id INT(11) NOT NULL,
     amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    platform_percent DECIMAL(5,2) NOT NULL DEFAULT 70.00,
-    mentor_pool_percent DECIMAL(5,2) NOT NULL DEFAULT 30.00,
+    platform_percent DECIMAL(5,2) NOT NULL DEFAULT 30.00,
+    mentor_pool_percent DECIMAL(5,2) NOT NULL DEFAULT 70.00,
     platform_share DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     mentor_pool_share DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     allocated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

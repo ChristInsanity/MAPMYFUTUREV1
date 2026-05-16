@@ -7,6 +7,7 @@ requireEmployer();
 $employerId = (int)$_SESSION['user_id'];
 $jobs = getEmployerJobs($conn, $employerId);
 $careers = getAllCareers($conn);
+$focusedJobId = isset($_GET['job_id']) ? (int)$_GET['job_id'] : 0;
 
 $pageTitle = 'Job Posts';
 $activePage = 'jobs';
@@ -21,12 +22,15 @@ include '../header.php';
     <div>
         <h1 class="text-3xl lg:text-4xl font-bold mb-2">Job Posts</h1>
     </div>
-    <button type="button" id="openJobModal" class="primaryBtn"><i class="fa-solid fa-plus"></i> Create Job</button>
+    <div class="flex gap-3">
+        <a href="archived_jobs.php" class="secondaryBtn"><i class="fa-solid fa-box-archive"></i> Archived</a>
+        <button type="button" id="openJobModal" class="primaryBtn"><i class="fa-solid fa-plus"></i> Create Job</button>
+    </div>
 </div>
 
 <div class="grid lg:grid-cols-2 gap-5">
     <?php foreach ($jobs as $job): ?>
-        <article class="card">
+        <article class="card jobCard <?= $focusedJobId === (int)$job['job_id'] ? 'ring-2 ring-blue-400/70' : '' ?>" data-job-id="<?= (int)$job['job_id'] ?>">
             <div class="flex justify-between gap-4 mb-4">
                 <div>
                     <p class="text-slate-400 text-sm"><?= e($job['career_title'] ?: 'All aligned careers') ?></p>
@@ -64,7 +68,9 @@ include '../header.php';
             </div>
             <div class="flex flex-wrap gap-2 mt-5">
                 <button type="button" class="secondaryBtn px-3 py-2 text-sm editJobBtn" data-job='<?= e(json_encode($job, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP)) ?>'><i class="fa-solid fa-pen"></i> Edit</button>
-                <?php if (($job['posting_status'] ?? 'open') !== 'closed'): ?>
+                <?php if (($job['posting_status'] ?? 'open') === 'closed'): ?>
+                    <button type="button" class="secondaryBtn px-3 py-2 text-sm jobActionBtn" data-job-id="<?= (int)$job['job_id'] ?>" data-action="open">Open</button>
+                <?php else: ?>
                     <button type="button" class="secondaryBtn px-3 py-2 text-sm jobActionBtn" data-job-id="<?= (int)$job['job_id'] ?>" data-action="close">Close</button>
                 <?php endif; ?>
                 <button type="button" class="secondaryBtn px-3 py-2 text-sm jobActionBtn" data-job-id="<?= (int)$job['job_id'] ?>" data-action="duplicate">Duplicate</button>
@@ -76,6 +82,8 @@ include '../header.php';
         <section class="card lg:col-span-2 text-slate-400">No job posts yet.</section>
     <?php endif; ?>
 </div>
+
+<div id="jobToast" class="hidden fixed right-4 top-24 z-[70] rounded-xl border px-4 py-3 text-sm shadow-2xl"></div>
 
 <div id="jobModal" class="hidden fixed inset-0 z-50 bg-black/70 px-4 py-8 overflow-y-auto">
     <div class="max-w-3xl mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6">
@@ -127,11 +135,32 @@ include '../header.php';
     </div>
 </div>
 
+<div id="jobSuccessModal" class="hidden fixed inset-0 z-[60] bg-black/70 px-4 py-8">
+    <div class="max-w-md mx-auto bg-[#162338] border border-[#334155] rounded-2xl p-6 text-center">
+        <i class="fa-solid fa-circle-check text-green-300 text-5xl mb-4"></i>
+        <h2 class="text-2xl font-bold mb-2">Job Post Created Successfully</h2>
+        <p class="text-slate-400 mb-5">Your post is ready in the employer job list.</p>
+        <div class="grid grid-cols-2 gap-3">
+            <a id="viewCreatedJob" href="jobs.php" class="primaryBtn">View Post</a>
+            <button type="button" id="createAnotherJob" class="secondaryBtn">Create Another</button>
+        </div>
+    </div>
+</div>
+
 <script>
 const jobModal = document.getElementById('jobModal');
 const jobForm = document.getElementById('jobForm');
 const jobModalTitle = document.getElementById('jobModalTitle');
 const saveJobBtn = document.getElementById('saveJobBtn');
+const jobToast = document.getElementById('jobToast');
+const jobSuccessModal = document.getElementById('jobSuccessModal');
+
+function showJobToast(message, success = true) {
+    jobToast.textContent = message;
+    jobToast.className = `fixed right-4 top-24 z-[70] rounded-xl border px-4 py-3 text-sm shadow-2xl ${success ? 'bg-green-500/10 border-green-500 text-green-200' : 'bg-red-500/10 border-red-500 text-red-200'}`;
+    jobToast.classList.remove('hidden');
+    setTimeout(() => jobToast.classList.add('hidden'), 2600);
+}
 
 function resetJobForm() {
     jobForm.reset();
@@ -149,12 +178,25 @@ document.getElementById('closeJobModal').addEventListener('click', () => jobModa
 
 jobForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const editing = Boolean(document.getElementById('job_id').value);
     const result = await window.mmfPost('ajax_job_create.php', new FormData(event.currentTarget), true);
     if (result.success) {
-        window.location.reload();
+        jobModal.classList.add('hidden');
+        if (editing) {
+            showJobToast('Job post updated.');
+        } else {
+            document.getElementById('viewCreatedJob').href = `jobs.php?job_id=${result.job_id || ''}`;
+            jobSuccessModal.classList.remove('hidden');
+        }
     } else {
-        alert(result.message || 'Unable to save job.');
+        showJobToast(result.message || 'Unable to save job.', false);
     }
+});
+
+document.getElementById('createAnotherJob').addEventListener('click', () => {
+    jobSuccessModal.classList.add('hidden');
+    resetJobForm();
+    jobModal.classList.remove('hidden');
 });
 
 document.querySelectorAll('.editJobBtn').forEach(button => {
@@ -181,12 +223,20 @@ document.querySelectorAll('.jobActionBtn').forEach(button => {
             action: button.dataset.action
         });
         if (result.success) {
-            window.location.reload();
+            showJobToast(result.message || 'Job post updated.');
+            if (button.dataset.action === 'archive') {
+                button.closest('article')?.remove();
+            }
         } else {
-            alert(result.message || 'Unable to update job.');
+            showJobToast(result.message || 'Unable to update job.', false);
         }
     });
 });
+
+const focusedJob = document.querySelector('.jobCard.ring-2');
+if (focusedJob) {
+    focusedJob.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
 </script>
 
 <?php include '../footer.php'; ?>

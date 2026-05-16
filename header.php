@@ -61,6 +61,7 @@ if ($navContext === 'admin') {
         'dashboard' => ['Dashboard', 'dashboard.php', 'fa-house'],
         'students' => ['Students', 'students.php', 'fa-user-graduate'],
         'tasks' => ['Tasks', 'create_task.php', 'fa-list-check'],
+        'earnings' => ['Earnings', 'earnings.php', 'fa-hand-holding-dollar'],
         'profile' => ['Profile', 'profile.php', 'fa-id-card'],
         'portfolio' => ['Portfolio', 'portfolio.php', 'fa-folder-open'],
         'requests' => ['Requests', 'enrollment_requests.php', 'fa-user-plus'],

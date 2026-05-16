@@ -39,9 +39,9 @@ include '../header.php';
 <?php if ($error): ?><div class="mb-6 rounded-2xl border border-red-500 bg-red-500/10 p-4 text-red-200"><?= e($error) ?></div><?php endif; ?>
 
 <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
-    <div class="statCard"><p class="text-slate-400 mb-2">Gross Premium</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['gross_revenue'], 2) ?></h2></div>
-    <div class="statCard"><p class="text-slate-400 mb-2">Platform Share</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['platform_share'], 2) ?></h2></div>
-    <div class="statCard"><p class="text-slate-400 mb-2">Mentor Pool</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['mentor_pool'], 2) ?></h2></div>
+    <div class="statCard"><p class="text-slate-400 mb-2">Total Premium Revenue</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['gross_revenue'], 2) ?></h2></div>
+    <div class="statCard"><p class="text-slate-400 mb-2">Platform Profit</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['platform_share'], 2) ?></h2></div>
+    <div class="statCard"><p class="text-slate-400 mb-2">Mentor Payouts</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['mentor_pool'], 2) ?></h2></div>
     <div class="statCard"><p class="text-slate-400 mb-2">Premium Assignments</p><h2 class="text-2xl font-bold"><?= (int)$data['totals']['active_premium_assignments'] ?></h2></div>
     <div class="statCard"><p class="text-slate-400 mb-2">Pending Payouts</p><h2 class="text-2xl font-bold">&#8369;<?= number_format($data['totals']['pending_payouts'], 2) ?></h2></div>
 </div>
